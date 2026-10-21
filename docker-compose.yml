@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  voice-dataset-bot:
+    build: .
+    container_name: voice_dataset_bot
+    restart: always
+    volumes:
+      - ./audios:/app/audios
+      - ./dataset.db:/app/dataset.db
+    env_file:
+      - .env
