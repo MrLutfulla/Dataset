@@ -19,15 +19,35 @@ Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), robototexnika va nutq b
    - Bitta Telegram akkauntidan bir nechta inson nomidan ovoz yozish;
    - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi**, **Yosh guruhi**, **Hudud**, **Qurilma** va **Muhit** saqlanadi.
 
-3. **Ko'p To'plamli Tizim (Dynamic Collections):**
-   - 🤖 **Robot Buyruqlari (`uz_robot_cmd`):** `oldinga`, `orqaga`, `chapga`, `o'ngga`, `to'xta`, `tezroq`, `sekinroq`, `boshla`, `yoq`, `o'chir`;
-   - 📦 **_unknown_ (Begona so'zlar):** `non`, `kitob`, `olma`, `suv`, `qalam`, `daraxt`...;
-   - 🎧 **_background_ (Shovqin va Jimlik):** Xona sukunati, ofis, ko'cha shovqini (10-60 soniya);
-   - 📖 **Umumiy ASR (Kitobiy/Neytral);**
-   - 😊 **Quvnoq / Xursand (Emotion);**
-   - 😢 **Yig'lamsirab / Mahzun (Emotion);**
-   - 😠 **G'azab / Asabiy (Emotion);**
-   - 🗣 **Smart-Uy Qisqa Buyruqlari.**
+3. **Robot Buyruqlari (uz_robot_cmd - 20 ta asosiy buyruq):**
+| № | O‘zbekcha buyruq | Sinf nomi (Class) | Vazifasi | Papka |
+|:---:|:---|:---:|:---|:---|
+| 1 | Oldinga yur | FORWARD | Oldinga harakat | `forward/` |
+| 2 | Orqaga yur | BACKWARD | Orqaga harakat | `backward/` |
+| 3 | Chapga buril | LEFT | Chapga burilish | `left/` |
+| 4 | O‘ngga buril | RIGHT | O‘ngga burilish | `right/` |
+| 5 | To‘xta | STOP | Harakatni to‘xtatish | `stop/` |
+| 6 | Davom et | RESUME | Harakatni davom ettirish | `resume/` |
+| 7 | Boshlash | START | Vazifani boshlash | `start/` |
+| 8 | Tezroq yur | SPEED_UP | Tezlikni oshirish | `speed_up/` |
+| 9 | Sekinroq yur | SLOW_DOWN | Tezlikni kamaytirish | `slow_down/` |
+| 10 | Chapga burilma | NO_LEFT | Chapga burilmaslik | `no_left/` |
+| 11 | O‘ngga burilma | NO_RIGHT | O‘ngga burilmaslik | `no_right/` |
+| 12 | To‘siqni aylanib o‘t | AVOID | To‘siqni chetlab o‘tish | `avoid/` |
+| 13 | Orqaga qayt | RETURN | Qaytish | `return/` |
+| 14 | Uyga qayt | GO_HOME | Bazaga qaytish | `go_home/` |
+| 15 | Qo‘lni ko‘tar | ARM_UP | Robot manipulyatorini ko‘tarish | `arm_up/` |
+| 16 | Qo‘lni tushir | ARM_DOWN | Manipulyatorni tushirish | `arm_down/` |
+| 17 | Ushla | GRAB | Buyumni ushlash | `grab/` |
+| 18 | Qo‘yib yubor | RELEASE | Buyumni qo‘yish | `release/` |
+| 19 | Holatingni ko‘rsat | STATUS | Robot holatini so‘rash | `status/` |
+| 20 | Takrorla | REPEAT | Oxirgi amalni takrorlash | `repeat/` |
+
+Qo'shimcha toifalar:
+- 📦 **_unknown_ (Begona so'zlar):** non, kitob, olma, suv, qalam, daraxt...;
+- 🎧 **_background_ (Shovqin va Jimlik):** Xona sukunati, ofis, ko'cha shovqini (10-60 soniya);
+- 📖 **Umumiy ASR (Kitobiy/Neytral);**
+- 😊 **Hissiyotlar (Quvnoq, Yig'lamsirab, G'azabli).**
 
 4. **Sessiya va Sifat Nazorati:**
    - 5 talik to'plam to'liq o'qilmaguncha asosiy datasetga kiritilmaydi (chala yozuvlar bekor qilinadi).
@@ -47,21 +67,29 @@ Admin paneldan **"🤖 uz_robot_cmd (Google Speech Commands ZIP)"** tugmasi orqa
 
 ```
 uz_robot_cmd/
-├── oldinga/
-│   ├── spk001_oldinga_01.wav
-│   ├── spk001_oldinga_02.wav
-│   └── spk002_oldinga_01.wav
-├── orqaga/
-│   ├── spk001_orqaga_01.wav
-│   └── ...
-├── chapga/
-├── o'ngga/
-├── to'xta/
-├── tezroq/
-├── sekinroq/
-├── boshla/
-├── yoq/
-├── o'chir/
+├── forward/            # Oldinga yur (FORWARD)
+│   ├── spk001_forward_01.wav
+│   ├── spk001_forward_02.wav
+│   └── spk002_forward_01.wav
+├── backward/           # Orqaga yur (BACKWARD)
+├── left/               # Chapga buril (LEFT)
+├── right/              # O'ngga buril (RIGHT)
+├── stop/               # To'xta (STOP)
+├── resume/             # Davom et (RESUME)
+├── start/              # Boshlash (START)
+├── speed_up/           # Tezroq yur (SPEED_UP)
+├── slow_down/          # Sekinroq yur (SLOW_DOWN)
+├── no_left/            # Chapga burilma (NO_LEFT)
+├── no_right/           # O'ngga burilma (NO_RIGHT)
+├── avoid/              # To'siqni aylanib o't (AVOID)
+├── return/             # Orqaga qayt (RETURN)
+├── go_home/            # Uyga qayt (GO_HOME)
+├── arm_up/             # Qo'lni ko'tar (ARM_UP)
+├── arm_down/           # Qo'lni tushir (ARM_DOWN)
+├── grab/               # Ushla (GRAB)
+├── release/            # Qo'yib yubor (RELEASE)
+├── status/             # Holatingni ko'rsat (STATUS)
+├── repeat/             # Takrorla (REPEAT)
 ├── _unknown_/          # Begona so'zlar (non, kitob, olma...)
 ├── _background_/       # Shovqin va jimlik (10-60s)
 ├── speakers.csv        # Diktorlar metama'lumotlari

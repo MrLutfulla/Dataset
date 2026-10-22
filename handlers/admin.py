@@ -179,7 +179,7 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
     # 2. splits.csv
     splits_csv_out = io.StringIO()
     splits_writer = csv.writer(splits_csv_out)
-    splits_writer.writerow(["audio_path", "speaker_id", "command", "split"])
+    splits_writer.writerow(["audio_path", "speaker_id", "command", "class_name", "split"])
 
     val_list = []
     test_list = []
@@ -207,6 +207,7 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
                     f"{it['folder_name']}/{it['filename']}",
                     it["speaker_id"],
                     it["command"],
+                    it.get("class_name", it["command"]),
                     it["split"]
                 ])
 

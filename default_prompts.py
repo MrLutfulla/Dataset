@@ -1,10 +1,33 @@
 # Boshlang'ich default toifalar va matnlar (Google Speech Commands va ASR standartlari)
 
+ROBOT_20_COMMANDS = [
+    {"text": "Oldinga yur", "class": "FORWARD", "desc": "Oldinga harakat"},
+    {"text": "Orqaga yur", "class": "BACKWARD", "desc": "Orqaga harakat"},
+    {"text": "Chapga buril", "class": "LEFT", "desc": "Chapga burilish"},
+    {"text": "O'ngga buril", "class": "RIGHT", "desc": "O'ngga burilish"},
+    {"text": "To'xta", "class": "STOP", "desc": "Harakatni to'xtatish"},
+    {"text": "Davom et", "class": "RESUME", "desc": "Harakatni davom ettirish"},
+    {"text": "Boshlash", "class": "START", "desc": "Vazifani boshlash"},
+    {"text": "Tezroq yur", "class": "SPEED_UP", "desc": "Tezlikni oshirish"},
+    {"text": "Sekinroq yur", "class": "SLOW_DOWN", "desc": "Tezlikni kamaytirish"},
+    {"text": "Chapga burilma", "class": "NO_LEFT", "desc": "Chapga burilmaslik"},
+    {"text": "O'ngga burilma", "class": "NO_RIGHT", "desc": "O'ngga burilmaslik"},
+    {"text": "To'siqni aylanib o't", "class": "AVOID", "desc": "To'siqni chetlab o'tish"},
+    {"text": "Orqaga qayt", "class": "RETURN", "desc": "Qaytish"},
+    {"text": "Uyga qayt", "class": "GO_HOME", "desc": "Bazaga qaytish"},
+    {"text": "Qo'lni ko'tar", "class": "ARM_UP", "desc": "Robot manipulyatorini ko'tarish"},
+    {"text": "Qo'lni tushir", "class": "ARM_DOWN", "desc": "Manipulyatorni tushirish"},
+    {"text": "Ushla", "class": "GRAB", "desc": "Buyumni ushlash"},
+    {"text": "Qo'yib yubor", "class": "RELEASE", "desc": "Buyumni qo'yish"},
+    {"text": "Holatingni ko'rsat", "class": "STATUS", "desc": "Robot holatini so'rash"},
+    {"text": "Takrorla", "class": "REPEAT", "desc": "Oxirgi amalni takrorlash"}
+]
+
 DEFAULT_CATEGORIES = [
     {
         "code": "robot_cmd",
-        "title": "🤖 Robot Buyruqlari (uz_robot_cmd)",
-        "description": "Google Speech Commands standarti: 1 soniyalik aniq va qisqa robot harakat buyruqlari."
+        "title": "🤖 Robot Buyruqlari (uz_robot_cmd - 20 ta)",
+        "description": "Google Speech Commands standarti: 20 ta aniq robot harakat va boshqaruv buyruqlari."
     },
     {
         "code": "unknown_words",
@@ -35,27 +58,11 @@ DEFAULT_CATEGORIES = [
         "code": "angry",
         "title": "😠 G'azab / Asabiy (Emotion)",
         "description": "Jiddiy, asabiy, qat'iy va g'azab ohangida aytiladigan jumlalar."
-    },
-    {
-        "code": "commands",
-        "title": "🗣 Smart-Uy Qisqa Buyruqlari",
-        "description": "Aqlli yordamchi va maishiy texnika uchun ovozli buyruqlar."
     }
 ]
 
 DEFAULT_PROMPTS = {
-    "robot_cmd": [
-        "oldinga",
-        "orqaga",
-        "chapga",
-        "o'ngga",
-        "to'xta",
-        "tezroq",
-        "sekinroq",
-        "boshla",
-        "yoq",
-        "o'chir"
-    ],
+    "robot_cmd": [item["text"] for item in ROBOT_20_COMMANDS],
     "unknown_words": [
         "non",
         "kitob",
@@ -114,17 +121,5 @@ DEFAULT_PROMPTS = {
         "Nega va'da bergan ishingni o'z vaqtida bajarmading, javob ber!",
         "Menga o'rgatma, o'z ishingni bilsang bo'lmaydimi?!",
         "Bu qaroringiz butun loyihani barbod qildi, tushunyapsizmi?!"
-    ],
-    "commands": [
-        "Chiroqni yoq.",
-        "Musiqani to'xtat.",
-        "Konditsionerni yigirma to'rt darajaga qo'y.",
-        "Eshikni qulfla.",
-        "Ertaga soat yettiga budilnik o'rnat.",
-        "Ovozni balandroq qil.",
-        "Keyingi qo'shiqqa o'tkaz.",
-        "Xonadagi haroratni ko'rsat.",
-        "Televizorni o'chir.",
-        "Xavfsizlik tizimini ishga tushir."
     ]
 }

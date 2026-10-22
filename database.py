@@ -121,6 +121,17 @@ async def init_db():
                         "INSERT INTO prompts (category_id, text) VALUES (?, ?)",
                         (cat_id, p_text)
                     )
+            else:
+                cat_id = cat_row["id"]
+                # Mavjud toifada yangi matnlar bo'lsa ularni ham kiritish
+                prompts_list = DEFAULT_PROMPTS.get(cat["code"], [])
+                for p_text in prompts_list:
+                    chk_p = await db.execute("SELECT id FROM prompts WHERE category_id = ? AND text = ?", (cat_id, p_text))
+                    if not await chk_p.fetchone():
+                        await db.execute(
+                            "INSERT INTO prompts (category_id, text) VALUES (?, ?)",
+                            (cat_id, p_text)
+                        )
         await db.commit()
 
 
@@ -697,13 +708,40 @@ async def get_speech_commands_export_data():
         recordings = [dict(r) for r in await cursor.fetchall()]
 
     # 3. Buyruq va takrorlarni hisoblash
-    repeat_tracker = {} # (spk_tag, command_slug) -> count
+    repeat_tracker = {} # (spk_tag, folder_name) -> count
     export_items = []
 
-    # Standart robot buyruqlari ro'yxati
-    ROBOT_COMMANDS = {
-        "oldinga", "orqaga", "chapga", "o'ngga", "to'xta",
-        "tezroq", "sekinroq", "boshla", "yoq", "o'chir"
+    # 20 ta standart robot buyruqlari xaritasi (O'zbekcha buyruq -> Sinf nomi va papka)
+    ROBOT_COMMANDS_MAP = {
+        "oldinga yur": {"class": "FORWARD", "folder": "forward"},
+        "oldinga": {"class": "FORWARD", "folder": "forward"},
+        "orqaga yur": {"class": "BACKWARD", "folder": "backward"},
+        "orqaga": {"class": "BACKWARD", "folder": "backward"},
+        "chapga buril": {"class": "LEFT", "folder": "left"},
+        "chapga": {"class": "LEFT", "folder": "left"},
+        "o'ngga buril": {"class": "RIGHT", "folder": "right"},
+        "o'ngga": {"class": "RIGHT", "folder": "right"},
+        "to'xta": {"class": "STOP", "folder": "stop"},
+        "davom et": {"class": "RESUME", "folder": "resume"},
+        "boshlash": {"class": "START", "folder": "start"},
+        "boshla": {"class": "START", "folder": "start"},
+        "tezroq yur": {"class": "SPEED_UP", "folder": "speed_up"},
+        "tezroq": {"class": "SPEED_UP", "folder": "speed_up"},
+        "sekinroq yur": {"class": "SLOW_DOWN", "folder": "slow_down"},
+        "sekinroq": {"class": "SLOW_DOWN", "folder": "slow_down"},
+        "chapga burilma": {"class": "NO_LEFT", "folder": "no_left"},
+        "o'ngga burilma": {"class": "NO_RIGHT", "folder": "no_right"},
+        "to'siqni aylanib o't": {"class": "AVOID", "folder": "avoid"},
+        "orqaga qayt": {"class": "RETURN", "folder": "return"},
+        "uyga qayt": {"class": "GO_HOME", "folder": "go_home"},
+        "qo'lni ko'tar": {"class": "ARM_UP", "folder": "arm_up"},
+        "qo'lni tushir": {"class": "ARM_DOWN", "folder": "arm_down"},
+        "ushla": {"class": "GRAB", "folder": "grab"},
+        "qo'yib yubor": {"class": "RELEASE", "folder": "release"},
+        "holatingni ko'rsat": {"class": "STATUS", "folder": "status"},
+        "takrorla": {"class": "REPEAT", "folder": "repeat"},
+        "yoq": {"class": "START", "folder": "start"},
+        "o'chir": {"class": "STOP", "folder": "stop"}
     }
 
     for r in recordings:
@@ -711,40 +749,42 @@ async def get_speech_commands_export_data():
         if not spk_info:
             continue
 
-        prompt_clean = r["prompt_text"].strip().lower()
+        raw_text = r["prompt_text"].strip()
+        prompt_clean = raw_text.lower()
         prompt_clean = re.sub(r"[^\w\s']", "", prompt_clean).strip()
         cat_code = r.get("category_code", "")
 
-        # Buyruq papkasini aniqlash
+        # Buyruq papkasi va sinf nomini aniqlash
         if cat_code == "background_noise" or "shovqin" in prompt_clean or "jimlik" in prompt_clean:
             folder_name = "_background_"
-            cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:20] or "noise"
+            class_name = "_BACKGROUND_"
+            cmd_slug = "background"
+        elif prompt_clean in ROBOT_COMMANDS_MAP:
+            info = ROBOT_COMMANDS_MAP[prompt_clean]
+            folder_name = info["folder"]
+            class_name = info["class"]
+            cmd_slug = info["folder"]
         elif cat_code == "unknown_words":
             folder_name = "_unknown_"
+            class_name = "_UNKNOWN_"
             cmd_slug = re.sub(r"\s+", "_", prompt_clean) or "word"
-        elif prompt_clean in ROBOT_COMMANDS:
-            folder_name = prompt_clean
-            cmd_slug = prompt_clean
         else:
-            # Agar bitta so'z bo'lsa va robot buyrug'i bo'lsa
-            words = prompt_clean.split()
-            if len(words) == 1 and words[0] in ROBOT_COMMANDS:
-                folder_name = words[0]
-                cmd_slug = words[0]
-            elif cat_code in ("commands", "robot_cmd"):
-                first_w = words[0] if words else "cmd"
-                if first_w in ROBOT_COMMANDS:
-                    folder_name = first_w
-                    cmd_slug = first_w
-                else:
-                    folder_name = "_unknown_"
-                    cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:15]
-            else:
+            # Matn ichidan 20 ta buyruq kalitlarini qidirish
+            matched = False
+            for k, val in ROBOT_COMMANDS_MAP.items():
+                if k in prompt_clean:
+                    folder_name = val["folder"]
+                    class_name = val["class"]
+                    cmd_slug = val["folder"]
+                    matched = True
+                    break
+            if not matched:
                 folder_name = "_unknown_"
+                class_name = "_UNKNOWN_"
                 cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:15]
 
         spk_tag = spk_info["speaker_id"]
-        key = (spk_tag, cmd_slug)
+        key = (spk_tag, folder_name)
         repeat_tracker[key] = repeat_tracker.get(key, 0) + 1
         repeat_idx = repeat_tracker[key]
 
@@ -755,15 +795,15 @@ async def get_speech_commands_export_data():
         export_items.append({
             "original_file_path": r["file_path"],
             "folder_name": folder_name,
+            "class_name": class_name,
             "filename": filename,
             "archive_path": f"uz_robot_cmd/{rel_path}",
             "rel_path": rel_path,
             "speaker_id": spk_tag,
-            "command": folder_name,
-            "cmd_slug": cmd_slug,
+            "command": raw_text,
             "repeat": repeat_idx,
             "split": spk_info["split"],
-            "prompt_text": r["prompt_text"],
+            "prompt_text": raw_text,
             "duration": r["duration"]
         })
 
