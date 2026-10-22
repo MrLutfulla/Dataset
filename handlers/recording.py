@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from config import AUDIOS_DIR, SESSION_BATCH_SIZE
-from audio_converter import convert_ogg_to_wav
+from audio_converter import convert_ogg_to_wav, get_exact_wav_duration
 from database import (
     get_or_create_user,
     get_speaker,
@@ -207,10 +207,22 @@ async def process_voice_message(message: Message, state: FSMContext, bot: Bot):
     await bot.download_file(file_info.file_path, destination=temp_ogg_path)
 
     # OGG faylni toza 16kHz mono WAV formatiga o'tkazamiz
-    converted = await convert_ogg_to_wav(temp_ogg_path, wav_file_path, sample_rate=16000, remove_ogg=True)
+    # Agar buyruqlar toifasi bo'lsa, Google Speech Commands talabiga ko'ra
+    # audio aniq 1.0 soniya qilinadi va buyruq markazlashtiriladi
+    cat_code = data.get("category_code", "")
+    is_command = cat_code in ("robot_cmd", "commands", "unknown_words")
+
+    converted = await convert_ogg_to_wav(
+        temp_ogg_path,
+        wav_file_path,
+        sample_rate=16000,
+        remove_ogg=True,
+        make_1sec_centered=is_command
+    )
     final_name = wav_file_name if converted else f"temp_{voice.file_id[-8:]}.ogg"
     final_file_path = wav_file_path if converted else temp_ogg_path
     actual_file_size = final_file_path.stat().st_size if final_file_path.exists() else (voice.file_size or 0)
+    actual_duration = get_exact_wav_duration(final_file_path) if converted else float(voice.duration)
 
     # Bazaga WAV ma'lumotlarini qo'shamiz
     relative_path = f"audios/speaker_{speaker_id}/{final_name}"
@@ -220,7 +232,7 @@ async def process_voice_message(message: Message, state: FSMContext, bot: Bot):
         prompt_id=current_prompt["id"],
         file_id=voice.file_id,
         file_path=relative_path,
-        duration=voice.duration,
+        duration=actual_duration,
         file_size=actual_file_size
     )
 

@@ -1,6 +1,21 @@
-# Boshlang'ich default toifalar va matnlar (demo versiya uchun tayyor)
+# Boshlang'ich default toifalar va matnlar (Google Speech Commands va ASR standartlari)
 
 DEFAULT_CATEGORIES = [
+    {
+        "code": "robot_cmd",
+        "title": "🤖 Robot Buyruqlari (uz_robot_cmd)",
+        "description": "Google Speech Commands standarti: 1 soniyalik aniq va qisqa robot harakat buyruqlari."
+    },
+    {
+        "code": "unknown_words",
+        "title": "📦 _unknown_ (Begona so'zlar)",
+        "description": "Robot adashmasligi uchun fon/begona so'zlar to'plami."
+    },
+    {
+        "code": "background_noise",
+        "title": "🎧 _background_ (Shovqin va Jimlik)",
+        "description": "Atrof-muhit shovqini, xona jimligi (10-60 soniyalik yozuvlar)."
+    },
     {
         "code": "neutral",
         "title": "📖 Umumiy ASR (Kitobiy/Neytral)",
@@ -23,12 +38,41 @@ DEFAULT_CATEGORIES = [
     },
     {
         "code": "commands",
-        "title": "🗣 Qisqa Buyruqlar (Voice Commands)",
-        "description": "Aqlli yordamchi va robototexnika uchun qisqa va aniq ovozli buyruqlar."
+        "title": "🗣 Smart-Uy Qisqa Buyruqlari",
+        "description": "Aqlli yordamchi va maishiy texnika uchun ovozli buyruqlar."
     }
 ]
 
 DEFAULT_PROMPTS = {
+    "robot_cmd": [
+        "oldinga",
+        "orqaga",
+        "chapga",
+        "o'ngga",
+        "to'xta",
+        "tezroq",
+        "sekinroq",
+        "boshla",
+        "yoq",
+        "o'chir"
+    ],
+    "unknown_words": [
+        "non",
+        "kitob",
+        "olma",
+        "suv",
+        "qalam",
+        "daraxt",
+        "havo",
+        "uy",
+        "stol",
+        "daftar"
+    ],
+    "background_noise": [
+        "sokin xona jimligi (15-30 soniya mikrofonni ushlab turing)",
+        "ofis fon shovqini (15-30 soniya mikrofonni ushlab turing)",
+        "ko'cha yoki transport shovqini (15-30 soniya mikrofonni ushlab turing)"
+    ],
     "neutral": [
         "O'zbekiston Markaziy Osiyoning yuragida joylashgan go'zal mamlakatdir.",
         "Sun'iy intellekt texnologiyalari ta'lim sifatini oshirishga katta hissa qo'shmoqda.",

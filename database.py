@@ -93,11 +93,23 @@ async def init_db():
 
         await db.commit()
 
-        # Seed categories if table is empty
-        cursor = await db.execute("SELECT COUNT(*) as cnt FROM categories")
-        row = await cursor.fetchone()
-        if row["cnt"] == 0:
-            for cat in DEFAULT_CATEGORIES:
+        # Migratsiyalar: speakers jadvaliga yangi ustunlar
+        spk_cols_cursor = await db.execute("PRAGMA table_info(speakers)")
+        spk_cols = [row["name"] for row in await spk_cols_cursor.fetchall()]
+        if "region" not in spk_cols:
+            await db.execute("ALTER TABLE speakers ADD COLUMN region TEXT DEFAULT 'Toshkent'")
+        if "device" not in spk_cols:
+            await db.execute("ALTER TABLE speakers ADD COLUMN device TEXT DEFAULT 'smartfon'")
+        if "environment" not in spk_cols:
+            await db.execute("ALTER TABLE speakers ADD COLUMN environment TEXT DEFAULT 'xona'")
+        if "age_group" not in spk_cols:
+            await db.execute("ALTER TABLE speakers ADD COLUMN age_group TEXT DEFAULT '18-25'")
+
+        # Toifalarni tekshirish va yangilarini qo'shish (DEFAULT_CATEGORIES)
+        for cat in DEFAULT_CATEGORIES:
+            check_cat = await db.execute("SELECT id FROM categories WHERE code = ?", (cat["code"],))
+            cat_row = await check_cat.fetchone()
+            if not cat_row:
                 cursor_ins = await db.execute(
                     "INSERT INTO categories (code, title, description) VALUES (?, ?, ?)",
                     (cat["code"], cat["title"], cat["description"])
@@ -109,7 +121,7 @@ async def init_db():
                         "INSERT INTO prompts (category_id, text) VALUES (?, ?)",
                         (cat_id, p_text)
                     )
-            await db.commit()
+        await db.commit()
 
 
 # ==================== USERS ====================
@@ -211,12 +223,38 @@ async def set_user_active_category(user_id: int, category_id: int):
 
 # ==================== SPEAKERS ====================
 
-async def create_speaker(user_id: int, name: str, gender: str, age: int):
+def compute_age_group(age: int) -> str:
+    """Yosh guruhini aniqlash (<18, 18-25, 26-40, 40+)"""
+    if age < 18:
+        return "<18"
+    elif 18 <= age <= 25:
+        return "18-25"
+    elif 26 <= age <= 40:
+        return "26-40"
+    else:
+        return "40+"
+
+
+async def create_speaker(
+    user_id: int,
+    name: str,
+    gender: str,
+    age: int,
+    region: str = "Toshkent",
+    device: str = "smartfon",
+    environment: str = "xona",
+    age_group: str = None
+):
+    if not age_group:
+        age_group = compute_age_group(age)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     async with get_db() as db:
         cursor = await db.execute(
-            "INSERT INTO speakers (user_id, name, gender, age, created_at) VALUES (?, ?, ?, ?, ?)",
-            (user_id, name, gender, age, now)
+            """
+            INSERT INTO speakers (user_id, name, gender, age, region, device, environment, age_group, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, name, gender, age, region, device, environment, age_group, now)
         )
         speaker_id = cursor.lastrowid
         # Avtomatik faol spiker qilib belgilash
@@ -567,3 +605,170 @@ async def get_export_dataset_rows(category_id: int = None, user_id: int = None, 
         cursor = await db.execute(query, tuple(params))
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+
+async def get_all_speakers():
+    """Barcha spikerlarni ro'yxatini to'liq parametrlar bilan qaytaradi"""
+    async with get_db() as db:
+        cursor = await db.execute("SELECT * FROM speakers ORDER BY id ASC")
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def get_speech_commands_export_data():
+    """
+    Google Speech Commands standarti (uz_robot_cmd):
+    - Har bir diktor uchun ID: spk001, spk002...
+    - speakers.csv: speaker_id, jins, yosh_guruhi, hudud, qurilma, muhit
+    - splits.csv: audio_path, speaker_id, command, split
+    - 80% train, 10% val, 10% test (har bir diktor faqat bitta guruhda)
+    - Fayl nomi: spk001_oldinga_01.wav
+    """
+    import re
+    import hashlib
+
+    # 1. Spikerlarni olish
+    speakers = await get_all_speakers()
+    speaker_map = {}
+    for idx, sp in enumerate(speakers):
+        spk_tag = f"spk{sp['id']:03d}"
+        
+        # Jinsni o'zbekchaga moslash
+        g_raw = (sp.get("gender") or "male").lower()
+        jins = "ayol" if g_raw in ("female", "ayol") else "erkak"
+        
+        # Yosh guruhi
+        age = sp.get("age", 20)
+        age_grp = sp.get("age_group") or compute_age_group(age)
+        
+        hudud = sp.get("region") or "Toshkent"
+        qurilma = sp.get("device") or "smartfon"
+        muhit = sp.get("environment") or "xona"
+
+        # 80% train, 10% val, 10% test (speaker-disjoint split)
+        # Deterministik va adolatli taqsimlash
+        h = int(hashlib.md5(f"split_{spk_tag}".encode()).hexdigest(), 16) % 100
+        if len(speakers) == 1:
+            split_grp = "train"
+        elif len(speakers) == 2:
+            split_grp = "train" if idx == 0 else "test"
+        elif len(speakers) == 3:
+            split_grp = ["train", "val", "test"][idx]
+        else:
+            if h < 80:
+                split_grp = "train"
+            elif h < 90:
+                split_grp = "val"
+            else:
+                split_grp = "test"
+
+        speaker_map[sp["id"]] = {
+            "speaker_id": spk_tag,
+            "raw_id": sp["id"],
+            "name": sp.get("name"),
+            "jins": jins,
+            "yosh_guruhi": age_grp,
+            "hudud": hudud,
+            "qurilma": qurilma,
+            "muhit": muhit,
+            "split": split_grp
+        }
+
+    # 2. Barcha yozuvlarni olish (kamida 1 ta ovoz yozilganlar)
+    query = """
+        SELECT r.id as recording_id,
+               r.file_path,
+               r.duration,
+               r.file_size,
+               r.created_at,
+               p.text as prompt_text,
+               c.code as category_code,
+               c.title as category_title,
+               r.speaker_id,
+               s.status as session_status
+        FROM recordings r
+        JOIN prompts p ON r.prompt_id = p.id
+        JOIN sessions s ON r.session_id = s.id
+        JOIN categories c ON s.category_id = c.id
+        ORDER BY r.speaker_id ASC, p.id ASC, r.id ASC
+    """
+    async with get_db() as db:
+        cursor = await db.execute(query)
+        recordings = [dict(r) for r in await cursor.fetchall()]
+
+    # 3. Buyruq va takrorlarni hisoblash
+    repeat_tracker = {} # (spk_tag, command_slug) -> count
+    export_items = []
+
+    # Standart robot buyruqlari ro'yxati
+    ROBOT_COMMANDS = {
+        "oldinga", "orqaga", "chapga", "o'ngga", "to'xta",
+        "tezroq", "sekinroq", "boshla", "yoq", "o'chir"
+    }
+
+    for r in recordings:
+        spk_info = speaker_map.get(r["speaker_id"])
+        if not spk_info:
+            continue
+
+        prompt_clean = r["prompt_text"].strip().lower()
+        prompt_clean = re.sub(r"[^\w\s']", "", prompt_clean).strip()
+        cat_code = r.get("category_code", "")
+
+        # Buyruq papkasini aniqlash
+        if cat_code == "background_noise" or "shovqin" in prompt_clean or "jimlik" in prompt_clean:
+            folder_name = "_background_"
+            cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:20] or "noise"
+        elif cat_code == "unknown_words":
+            folder_name = "_unknown_"
+            cmd_slug = re.sub(r"\s+", "_", prompt_clean) or "word"
+        elif prompt_clean in ROBOT_COMMANDS:
+            folder_name = prompt_clean
+            cmd_slug = prompt_clean
+        else:
+            # Agar bitta so'z bo'lsa va robot buyrug'i bo'lsa
+            words = prompt_clean.split()
+            if len(words) == 1 and words[0] in ROBOT_COMMANDS:
+                folder_name = words[0]
+                cmd_slug = words[0]
+            elif cat_code in ("commands", "robot_cmd"):
+                first_w = words[0] if words else "cmd"
+                if first_w in ROBOT_COMMANDS:
+                    folder_name = first_w
+                    cmd_slug = first_w
+                else:
+                    folder_name = "_unknown_"
+                    cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:15]
+            else:
+                folder_name = "_unknown_"
+                cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:15]
+
+        spk_tag = spk_info["speaker_id"]
+        key = (spk_tag, cmd_slug)
+        repeat_tracker[key] = repeat_tracker.get(key, 0) + 1
+        repeat_idx = repeat_tracker[key]
+
+        # Standart fayl nomi: diktorID_buyruq_takror.wav
+        filename = f"{spk_tag}_{cmd_slug}_{repeat_idx:02d}.wav"
+        rel_path = f"{folder_name}/{filename}"
+
+        export_items.append({
+            "original_file_path": r["file_path"],
+            "folder_name": folder_name,
+            "filename": filename,
+            "archive_path": f"uz_robot_cmd/{rel_path}",
+            "rel_path": rel_path,
+            "speaker_id": spk_tag,
+            "command": folder_name,
+            "cmd_slug": cmd_slug,
+            "repeat": repeat_idx,
+            "split": spk_info["split"],
+            "prompt_text": r["prompt_text"],
+            "duration": r["duration"]
+        })
+
+    return {
+        "speakers": list(speaker_map.values()),
+        "items": export_items
+    }
+

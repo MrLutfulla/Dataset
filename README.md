@@ -1,32 +1,89 @@
 # 🎙 O'zbek Tili Ovozli Dataset Yig'ish Telegram Boti
 
-Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), til modellarini o'qitish hamda ovozdan jins, yosh va hissiyotlarni (Speech Emotion Recognition) aniqlash uchun to'liq avtomatlashtirilgan dataset yig'ish platformasi.
+Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), robototexnika va nutq buyruqlarini aniqlash (**Google Speech Commands standarti**), hamda ovozdan jins, yosh va hissiyotlarni (Speech Emotion Recognition) aniqlash uchun to'liq avtomatlashtirilgan dataset platformasi.
 
 ---
 
 ## 🌟 Asosiy Imkoniyatlar
 
-1. **Ko'p Spikerli Tizim (Multi-Speaker):**
-   - Bitta Telegram akkauntidan bir nechta inson (o'zi, do'sti, oila a'zolari) nomidan ovoz yozish;
-   - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi** saqlanadi.
-2. **Ko'p To'plamli Tizim (Dynamic Collections):**
-   - Ovoz yozish bosilganda to'plam tanlash;
-   - Admin panel orqali xohlagancha yangi to'plam ochish va `.txt` / `.csv` formatda matnlar yuklash;
-   - Boshlang'ich to'plamlar:
-     - 📖 **Umumiy ASR (Kitobiy/Neytral)**
-     - 😊 **Quvnoq / Xursand (Emotion)**
-     - 😢 **Yig'lamsirab / Mahzun (Emotion)**
-     - 😠 **G'azab / Asabiy (Emotion)**
-     - 🗣 **Qisqa Buyruqlar (Voice Commands)**
-3. **Avtomatik 16kHz Mono WAV Standarti:**
-   - Har bir kelgan Telegram ovozli xabari avtomatik tarzda `ffmpeg` orqali xalqaro ASR standartidagi **16000Hz Mono WAV** formatiga o'tkaziladi.
+1. **Google Speech Commands Standarti (`uz_robot_cmd`):**
+   - **Audio formati:** WAV, 16 kHz, 16-bit PCM, mono, uzunligi roppa-rosa **1.0 soniya** (16000 ta sample);
+   - **Avtomatik markazlashtirish:** Buyruq audio markazida bo'ladi, oldi va ortida tabiiy jimlik (silence padding) qoldiriladi;
+   - **Papka tuzilmasi:** Har bir buyruq uchun alohida papka (`oldinga/`, `orqaga/`, `chapga/`, `o'ngga/`, `to'xta/`, `_unknown_/`, `_background_/`);
+   - **Fayl nomi:** `diktoriD_buyruq_takror.wav` (masalan: `spk001_oldinga_01.wav`);
+   - **`speakers.csv`:** `speaker_id, jins, yosh_guruhi, hudud, qurilma, muhit`;
+   - **`splits.csv`:** Har bir diktor faqat bitta guruhda bo'ladi (80% train, 10% val, 10% test);
+   - **`validation_list.txt` va `testing_list.txt`:** TensorFlow / PyTorch rasmiy loaderlari uchun tayyor fayllar.
+
+2. **Ko'p Spikerli Tizim (Multi-Speaker):**
+   - Bitta Telegram akkauntidan bir nechta inson nomidan ovoz yozish;
+   - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi**, **Yosh guruhi**, **Hudud**, **Qurilma** va **Muhit** saqlanadi.
+
+3. **Ko'p To'plamli Tizim (Dynamic Collections):**
+   - 🤖 **Robot Buyruqlari (`uz_robot_cmd`):** `oldinga`, `orqaga`, `chapga`, `o'ngga`, `to'xta`, `tezroq`, `sekinroq`, `boshla`, `yoq`, `o'chir`;
+   - 📦 **_unknown_ (Begona so'zlar):** `non`, `kitob`, `olma`, `suv`, `qalam`, `daraxt`...;
+   - 🎧 **_background_ (Shovqin va Jimlik):** Xona sukunati, ofis, ko'cha shovqini (10-60 soniya);
+   - 📖 **Umumiy ASR (Kitobiy/Neytral);**
+   - 😊 **Quvnoq / Xursand (Emotion);**
+   - 😢 **Yig'lamsirab / Mahzun (Emotion);**
+   - 😠 **G'azab / Asabiy (Emotion);**
+   - 🗣 **Smart-Uy Qisqa Buyruqlari.**
+
 4. **Sessiya va Sifat Nazorati:**
    - 5 talik to'plam to'liq o'qilmaguncha asosiy datasetga kiritilmaydi (chala yozuvlar bekor qilinadi).
+
 5. **Ustoz & Admin Boshqaruv Markazi (`/admin`):**
+   - **🤖 uz_robot_cmd ZIP Eksport:** 1 soniyalik Google Speech Commands standartidagi to'liq arxivni bitta tugma bilan yuklab olish;
    - **📊 Jonli Statistika:** Jami foydalanuvchilar, spikerlar, jins/yosh nisbati, audio soatlari;
-   - **📦 ZIP Eksport:** Barcha datasetlarni bitta ZIP yoki alohida to'plam/spiker bo'yicha `metadata.csv` (UTF-8 BOM) va `metadata.jsonl` (HuggingFace standartida) bilan yuklab olish;
+   - **📦 Umumiy Dataset ZIP Eksport:** `metadata.csv` (UTF-8 BOM) va `metadata.jsonl` (HuggingFace standarti) bilan yuklash;
    - **👥 Foydalanuvchilar & Guruhlar:** Jins, yosh bo'yicha saralash, qidiruv va spiker bo'yicha alohida yuklash;
-   - **➕ Yangi To'plam Yaratish va Matnlar Yuklash:** Yangi yo'nalishlar ochish.
+   - **➕ Yangi To'plam Yaratish:** Yangi yo'nalishlar ochish.
+
+---
+
+## 📂 Google Speech Commands Tuzilmasi
+
+Admin paneldan **"🤖 uz_robot_cmd (Google Speech Commands ZIP)"** tugmasi orqali yuklab olinadigan arxiv tuzilishi:
+
+```
+uz_robot_cmd/
+├── oldinga/
+│   ├── spk001_oldinga_01.wav
+│   ├── spk001_oldinga_02.wav
+│   └── spk002_oldinga_01.wav
+├── orqaga/
+│   ├── spk001_orqaga_01.wav
+│   └── ...
+├── chapga/
+├── o'ngga/
+├── to'xta/
+├── tezroq/
+├── sekinroq/
+├── boshla/
+├── yoq/
+├── o'chir/
+├── _unknown_/          # Begona so'zlar (non, kitob, olma...)
+├── _background_/       # Shovqin va jimlik (10-60s)
+├── speakers.csv        # Diktorlar metama'lumotlari
+├── splits.csv          # 80/10/10 train/val/test taqsimoti
+├── validation_list.txt # Rasmiy validation ro'yxati
+├── testing_list.txt    # Rasmiy test ro'yxati
+└── README.txt          # Yo'riqnoma
+```
+
+### `speakers.csv` namunasi:
+```csv
+speaker_id,jins,yosh_guruhi,hudud,qurilma,muhit
+spk001,ayol,18-25,Toshkent,smartfon,xona
+spk002,erkak,26-40,Samarqand,naushnik,ofis
+```
+
+### `splits.csv` namunasi:
+```csv
+audio_path,speaker_id,command,split
+oldinga/spk001_oldinga_01.wav,spk001,oldinga,train
+oldinga/spk002_oldinga_01.wav,spk002,oldinga,test
+```
 
 ---
 
@@ -48,14 +105,8 @@ Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), til modellarini o'qitis
 
 ### 💻 1-usul: Windows Kompyuterda (1-klik orqali)
 
-1. Ushbu papkadagi `.env.example` faylidan `.env` nusxasini oling (agar bo'lmasa avtomatik yaratiladi).
-2. `.env` fayliga bot tokeningizni kiriting:
-   ```env
-   BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-   SESSION_BATCH_SIZE=5
-   DB_PATH=dataset.db
-   ```
-3. **`run.bat`** faylini ikki marta bosing!
+1. Papkadagi `.env` fayliga bot tokeningiz kiritilganligini tekshiring (`.env.example` namunasi mavjud).
+2. **`run.bat`** faylini ikki marta bosing!
    - U Python, kutubxonalar va FFmpeg mavjudligini avtomatik tekshiradi, yetishmayotganlarini o'rnatadi va botni ishga tushiradi.
 
 ---
@@ -82,69 +133,3 @@ nano .env
 # 5. Ishga tushirish
 python3 main.py
 ```
-
-Doimiy fon rejimida (Systemd xizmati) ishlatish:
-```ini
-# /etc/systemd/system/voice_bot.service
-[Unit]
-Description=Voice Dataset Telegram Bot
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/voice_dataset_bot
-ExecStart=/root/voice_dataset_bot/.venv/bin/python3 main.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now voice_bot
-sudo systemctl status voice_bot
-```
-
----
-
-### 🐳 3-usul: Docker orqali
-
-```bash
-cd voice_dataset_bot
-docker compose up -d --build
-docker compose logs -f
-```
-
----
-
-## 📦 Dataset Tuzilishi va Eksport Formati
-
-Admin paneldan yuklab olinadigan ZIP fayl quyidagi tuzilishga ega bo'ladi:
-
-```
-dataset_YYYYMMDD_HHMMSS.zip
-├── audios/
-│   ├── sess_3_p35_xxxx.wav
-│   ├── sess_3_p36_xxxx.wav
-│   └── ...
-├── metadata.csv        # Excel va Python Pandas uchun (UTF-8 BOM)
-└── metadata.jsonl      # HuggingFace Datasets va ASR modellari uchun
-```
-
-### `metadata.csv` ustunlari:
-- `recording_id`: Ovoz yozuvining unikal ID si
-- `audio_file`: Audio faylning nisbiy yo'li (`audios/sess_...wav`)
-- `prompt_text`: O'qilgan asl matn
-- `category_code`: Toifa kodi (`neutral`, `happy`, `sad`, `angry`, `commands`)
-- `category_title`: Toifa nomi
-- `speaker_name`: Spiker ismi
-- `speaker_gender`: Jinsi (`male` / `female`)
-- `speaker_age`: Yoshi
-- `telegram_user_id`: Ovoz yuborgan Telegram foydalanuvchisi ID si
-- `session_id`: 5 talik to'plam sessiyasi ID si
-- `duration_seconds`: Audio davomiyligi (soniya)
-- `file_size_bytes`: WAV fayl hajmi (bayt)
-- `created_at`: Yozib olingan vaqt

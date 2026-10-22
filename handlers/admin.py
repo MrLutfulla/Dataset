@@ -11,6 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from config import BASE_DIR, AUDIOS_DIR
+from audio_converter import center_and_pad_to_1sec
 from database import (
     is_admin,
     get_overall_stats,
@@ -24,7 +25,8 @@ from database import (
     add_prompts_bulk,
     get_export_dataset_rows,
     get_speakers_by_filter,
-    get_speaker
+    get_speaker,
+    get_speech_commands_export_data
 )
 from keyboards.inline import (
     get_admin_inline_keyboard,
@@ -134,6 +136,123 @@ async def show_export_menu(callback: CallbackQuery):
     )
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=get_dataset_export_menu_keyboard(categories))
     await callback.answer()
+
+
+@router.callback_query(F.data == "export_speech_commands_zip")
+async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
+    if not await is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    await callback.answer("Google Speech Commands (uz_robot_cmd) arxivlanmoqda...", show_alert=False)
+    status_msg = await callback.message.answer(
+        "⏳ <i>«uz_robot_cmd» (Google Speech Commands standarti) bo'yicha audio fayllar 1 soniyaga keltirilmoqda va arxivlanmoqda...</i>",
+        parse_mode="HTML"
+    )
+
+    data = await get_speech_commands_export_data()
+    items = data["items"]
+    speakers = data["speakers"]
+
+    if not items:
+        await status_msg.edit_text("⚠️ Hozircha datasetda audio yozuvlar mavjud emas.")
+        return
+
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_filename = f"uz_robot_cmd_{timestamp_str}.zip"
+    temp_zip_path = BASE_DIR / zip_filename
+
+    # 1. speakers.csv
+    spk_csv_out = io.StringIO()
+    spk_writer = csv.writer(spk_csv_out)
+    spk_writer.writerow(["speaker_id", "jins", "yosh_guruhi", "hudud", "qurilma", "muhit"])
+    for sp in speakers:
+        spk_writer.writerow([
+            sp["speaker_id"],
+            sp["jins"],
+            sp["yosh_guruhi"],
+            sp["hudud"],
+            sp["qurilma"],
+            sp["muhit"]
+        ])
+
+    # 2. splits.csv
+    splits_csv_out = io.StringIO()
+    splits_writer = csv.writer(splits_csv_out)
+    splits_writer.writerow(["audio_path", "speaker_id", "command", "split"])
+
+    val_list = []
+    test_list = []
+
+    temp_process_dir = BASE_DIR / "temp_1sec_cache"
+    temp_process_dir.mkdir(exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for it in items:
+                orig_file = BASE_DIR / it["original_file_path"]
+                if not orig_file.exists():
+                    continue
+
+                cached_wav = temp_process_dir / it["filename"]
+                if it["folder_name"] == "_background_":
+                    cached_wav = orig_file
+                else:
+                    center_and_pad_to_1sec(orig_file, cached_wav, target_samples=16000)
+
+                arc_name = f"uz_robot_cmd/{it['folder_name']}/{it['filename']}"
+                zipf.write(cached_wav, arcname=arc_name)
+
+                splits_writer.writerow([
+                    f"{it['folder_name']}/{it['filename']}",
+                    it["speaker_id"],
+                    it["command"],
+                    it["split"]
+                ])
+
+                if it["split"] == "val":
+                    val_list.append(f"{it['folder_name']}/{it['filename']}")
+                elif it["split"] == "test":
+                    test_list.append(f"{it['folder_name']}/{it['filename']}")
+
+            zipf.writestr("uz_robot_cmd/speakers.csv", ("\ufeff" + spk_csv_out.getvalue()).encode("utf-8"))
+            zipf.writestr("uz_robot_cmd/splits.csv", ("\ufeff" + splits_csv_out.getvalue()).encode("utf-8"))
+            zipf.writestr("uz_robot_cmd/validation_list.txt", "\n".join(val_list).encode("utf-8"))
+            zipf.writestr("uz_robot_cmd/testing_list.txt", "\n".join(test_list).encode("utf-8"))
+
+            readme_text = (
+                "Google Speech Commands standarti (O'zbek tili - uz_robot_cmd)\n"
+                "===========================================================\n"
+                "1. Format: 16 kHz, 16-bit PCM, mono WAV, uzunligi roppa-rosa 1.0 soniya.\n"
+                "2. Buyruq audio markazida joylashgan, oldi va ortida jimlik qoldirilgan.\n"
+                "3. Fayl nomlari: spkXXX_buyruq_takror.wav\n"
+                "4. speakers.csv: speaker_id, jins, yosh_guruhi, hudud, qurilma, muhit\n"
+                "5. splits.csv: 80% train, 10% val, 10% test (speaker-disjoint)\n"
+                "6. validation_list.txt va testing_list.txt: rasmiy Speech Commands loaderlari uchun.\n"
+            )
+            zipf.writestr("uz_robot_cmd/README.txt", readme_text.encode("utf-8"))
+
+        doc = FSInputFile(temp_zip_path, filename=zip_filename)
+        caption = (
+            "🤖 <b>uz_robot_cmd (Google Speech Commands) Tayyor!</b>\n\n"
+            f"📁 <b>Audio fayllar soni:</b> {len(items)} ta\n"
+            f"👥 <b>Diktorlar soni:</b> {len(speakers)} ta (speakers.csv)\n"
+            "🎚 <b>Audio formati:</b> 16 kHz, 16-bit mono WAV, roppa-rosa 1.0s (buyruq markazda)\n"
+            "⚖️ <b>Bo'linmalar:</b> 80% train / 10% val / 10% test (splits.csv)\n"
+            "📂 <b>Tuzilma:</b> `uz_robot_cmd/[buyruq]/spkXXX_buyruq_01.wav`\n"
+            "📄 <b>Fayllar:</b> `speakers.csv`, `splits.csv`, `validation_list.txt`, `testing_list.txt`"
+        )
+        await bot.send_document(chat_id=callback.from_user.id, document=doc, caption=caption, parse_mode="HTML")
+        await status_msg.delete()
+    finally:
+        if temp_zip_path.exists():
+            try:
+                os.remove(temp_zip_path)
+            except Exception:
+                pass
+        import shutil
+        if temp_process_dir.exists():
+            shutil.rmtree(temp_process_dir, ignore_errors=True)
 
 
 @router.callback_query(F.data.startswith("export_zip:"))

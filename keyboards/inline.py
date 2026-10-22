@@ -60,6 +60,7 @@ def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
 
 def get_dataset_export_menu_keyboard(categories: list) -> InlineKeyboardMarkup:
     buttons = [
+        [InlineKeyboardButton(text="🤖 uz_robot_cmd (Google Speech Commands ZIP)", callback_data="export_speech_commands_zip")],
         [InlineKeyboardButton(text="📦 Barcha Datasetlar (Umumiy ZIP)", callback_data="export_zip:all")]
     ]
     for cat in categories:
@@ -70,6 +71,70 @@ def get_dataset_export_menu_keyboard(categories: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="⬅️ Admin Menyu", callback_data="admin_menu")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_region_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Toshkent", callback_data="set_region:Toshkent"),
+            InlineKeyboardButton(text="Samarqand", callback_data="set_region:Samarqand")
+        ],
+        [
+            InlineKeyboardButton(text="Farg'ona", callback_data="set_region:Farg'ona"),
+            InlineKeyboardButton(text="Andijon", callback_data="set_region:Andijon"),
+            InlineKeyboardButton(text="Namangan", callback_data="set_region:Namangan")
+        ],
+        [
+            InlineKeyboardButton(text="Buxoro", callback_data="set_region:Buxoro"),
+            InlineKeyboardButton(text="Qashqadaryo", callback_data="set_region:Qashqadaryo"),
+            InlineKeyboardButton(text="Surxondaryo", callback_data="set_region:Surxondaryo")
+        ],
+        [
+            InlineKeyboardButton(text="Xorazm", callback_data="set_region:Xorazm"),
+            InlineKeyboardButton(text="Navoiy", callback_data="set_region:Navoiy"),
+            InlineKeyboardButton(text="Jizzax", callback_data="set_region:Jizzax")
+        ],
+        [
+            InlineKeyboardButton(text="Sirdaryo", callback_data="set_region:Sirdaryo"),
+            InlineKeyboardButton(text="Qoraqalpog'iston", callback_data="set_region:Qoraqalpog'iston"),
+            InlineKeyboardButton(text="Boshqa", callback_data="set_region:Boshqa")
+        ],
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_action")
+        ]
+    ])
+
+
+def get_device_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📱 Smartfon", callback_data="set_device:smartfon"),
+            InlineKeyboardButton(text="🎧 Naushnik / Quloqchin", callback_data="set_device:naushnik")
+        ],
+        [
+            InlineKeyboardButton(text="💻 Noutbuk / Kompyuter", callback_data="set_device:noutbuk"),
+            InlineKeyboardButton(text="🎙 Alohida Mikrofon", callback_data="set_device:mikrofon")
+        ],
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_action")
+        ]
+    ])
+
+
+def get_environment_inline_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🏠 Sokin xona", callback_data="set_env:xona"),
+            InlineKeyboardButton(text="🏢 Ofis / Ishxona", callback_data="set_env:ofis")
+        ],
+        [
+            InlineKeyboardButton(text="🚗 Mashina / Transport", callback_data="set_env:avto"),
+            InlineKeyboardButton(text="🌳 Ko'cha / Shovqinli joy", callback_data="set_env:ko'cha")
+        ],
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_action")
+        ]
+    ])
 
 
 def get_admin_users_menu_keyboard() -> InlineKeyboardMarkup:
