@@ -1,8 +1,40 @@
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
-*.db-journal
+
+# Maxfiy konfiguratsiya va virtual muhit
 .env
 .venv/
+env/
+venv/
+
+# Ma'lumotlar bazasi
 *.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Audio yozuvlar va keshlar
 audios/
+*.wav
+*.ogg
+*.mp3
+*.flac
+temp_*/
+temp_1sec_cache/
+
+# Dataset metama'lumotlari va eksport fayllari (GitHub'ga yuklanmasin)
+metadata.csv
+metadata.jsonl
+speakers.csv
+splits.csv
+validation_list.txt
+testing_list.txt
+*.csv
+*.jsonl
+*.zip
+*.tar.gz
+uz_robot_cmd/
+dataset_*.zip
+uz_robot_cmd_*.zip
