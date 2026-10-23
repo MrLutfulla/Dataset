@@ -351,13 +351,25 @@ async def get_prompts_count(category_id: int):
         return row["cnt"] if row else 0
 
 
-async def get_next_prompts_for_speaker(speaker_id: int, category_id: int, limit: int = 5):
+async def get_next_prompts_for_speaker(speaker_id: int, category_id: int, limit: int = 20):
     """
-    Spiker hali yakunlangan sessiyalarda o'qimagan matnlarni olib beradi.
-    Agar barcha matnlar tugagan bo'lsa, ixtiyoriy matnlardan aylantirib beradi.
+    Sessiya uchun barcha 20 ta buyruqni to'liq 1 dan 20 gacha tartib bilan beradi.
+    Agar toifada matnlar ko'p bo'lsa, o'qilmaganlarini tartib bilan olib beradi.
     """
     async with get_db() as db:
+        # Toifadagi barcha faol matnlar
         cursor = await db.execute(
+            "SELECT * FROM prompts WHERE category_id = ? AND is_active = 1 ORDER BY id ASC",
+            (category_id,)
+        )
+        all_prompts = [dict(r) for r in await cursor.fetchall()]
+        
+        # Agar toifadagi matnlar soni <= limit (masalan 20 ta buyruq) bo'lsa, barchasini to'liq beramiz!
+        if len(all_prompts) <= limit:
+            return all_prompts
+
+        # Agar toifada matnlar ko'p bo'lsa, hali o'qilmaganlarini tartib bilan olamiz
+        cur_unread = await db.execute(
             """
             SELECT p.* FROM prompts p
             WHERE p.category_id = ? AND p.is_active = 1
@@ -371,16 +383,10 @@ async def get_next_prompts_for_speaker(speaker_id: int, category_id: int, limit:
             """,
             (category_id, speaker_id, limit)
         )
-        rows = await cursor.fetchall()
-        results = [dict(r) for r in rows]
-        if not results:
-            # Agar barcha matnlar o'qib bo'lingan bo'lsa, eng kam o'qilganlaridan beradi
-            cur_fallback = await db.execute(
-                "SELECT * FROM prompts WHERE category_id = ? AND is_active = 1 ORDER BY RANDOM() LIMIT ?",
-                (category_id, limit)
-            )
-            results = [dict(r) for r in await cur_fallback.fetchall()]
-        return results
+        unread = [dict(r) for r in await cur_unread.fetchall()]
+        if unread:
+            return unread
+        return all_prompts[:limit]
 
 
 # ==================== SESSIONS & RECORDINGS ====================

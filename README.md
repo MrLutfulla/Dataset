@@ -48,7 +48,7 @@ Qo'shimcha toifalar:
 - 😊 **Hissiyotlar (Quvnoq, Yig'lamsirab, G'azabli).**
 
 4. **Sessiya va Sifat Nazorati:**
-   - 5 talik to'plam to'liq o'qilmaguncha asosiy datasetga kiritilmaydi (chala yozuvlar bekor qilinadi).
+   - 20 talik to'plam to'liq o'qilmaguncha asosiy datasetga kiritilmaydi (chala yozuvlar bekor qilinadi).
 
 5. **Ustoz & Admin Boshqaruv Markazi (`/admin`):**
    - **🤖 uz_robot_cmd ZIP Eksport:** 1 soniyalik Google Speech Commands standartidagi to'liq arxivni bitta tugma bilan yuklab olish;

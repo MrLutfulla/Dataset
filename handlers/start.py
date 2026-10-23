@@ -51,7 +51,7 @@ async def cmd_help(message: Message):
         "Bitta telefondan istalgancha odam uchun alohida profil ochishingiz mumkin.\n"
         "2. <b>📂 To'plamlar:</b> Qaysi yo'nalishda (kitobiy, hissiyotli yoki buyruqlar) ovoz yozishni ko'rishingiz mumkin.\n"
         "3. <b>🎙 Ovoz yozish:</b> Bosganda to'plamni tanlaysiz va berilgan matnlarni ketma-ket mikrofon orqali o'qib yuborasiz.\n"
-        "4. <b>📦 Sessiya qoidasi:</b> Har bir to'plam 5 ta matndan iborat. Barcha ovozlar toza 16kHz WAV formatida saqlanadi!\n\n"
+        "4. <b>📦 Sessiya qoidasi:</b> Har bir to'plamdagi barcha buyruqlar (20 ta buyruq) to'liq ketma-ket o'qiladi. Barcha ovozlar toza 16kHz WAV formatida saqlanadi!\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
         "/record — Ovoz yozishni boshlash (to'plam tanlash)\n"
         "/speakers — Spikerlar boshqaruvi\n"
