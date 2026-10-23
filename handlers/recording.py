@@ -183,13 +183,13 @@ async def cancel_recording_flow(message: Message, state: FSMContext):
 @router.message(
     RecordingSG.recording_voice,
     F.text.in_([
-        "🎙 Ovoz yozish", "👤 Spikerlarim", "📂 To'plamlar", "🎭 Toifalar",
+        "🎙 Ovoz yozish", "🎧 Ovoz tekshirish", "👤 Spikerlarim", "📂 To'plamlar", "🎭 Toifalar",
         "📊 Mening hissam", "⚙️ Admin Panel", "🏠 Asosiy menyu"
     ])
 )
 @router.message(
     RecordingSG.recording_voice,
-    Command("start", "record", "speakers", "collections", "categories", "mystats", "admin", "help")
+    Command("start", "record", "validate", "check", "speakers", "collections", "categories", "mystats", "admin", "help")
 )
 async def break_out_of_recording(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -201,6 +201,9 @@ async def break_out_of_recording(message: Message, state: FSMContext):
     text = message.text or ""
     if text in ("🎙 Ovoz yozish", "/record"):
         await start_recording_flow(message, state)
+    elif text in ("🎧 Ovoz tekshirish", "/validate", "/check"):
+        from handlers.validation import start_validation_flow
+        await start_validation_flow(message, state, message.bot)
     elif text in ("👤 Spikerlarim", "/speakers"):
         from handlers.speakers import show_speakers
         await show_speakers(message, state)

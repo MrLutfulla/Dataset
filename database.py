@@ -93,6 +93,22 @@ async def init_db():
 
         await db.commit()
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS validations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recording_id INTEGER NOT NULL,
+                validator_user_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (recording_id) REFERENCES recordings (id),
+                FOREIGN KEY (validator_user_id) REFERENCES users (user_id),
+                UNIQUE(recording_id, validator_user_id)
+            )
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_validations_rec ON validations(recording_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_validations_user ON validations(validator_user_id)")
+        await db.commit()
+
         # Migratsiyalar: speakers jadvaliga yangi ustunlar
         spk_cols_cursor = await db.execute("PRAGMA table_info(speakers)")
         spk_cols = [row["name"] for row in await spk_cols_cursor.fetchall()]
@@ -513,6 +529,17 @@ async def get_overall_stats():
         draft_cur = await db.execute("SELECT COUNT(*) as cnt FROM sessions WHERE status != 'completed'")
         abandoned_sessions = (await draft_cur.fetchone())["cnt"]
 
+        # Validatsiya statistikasi
+        val_cur = await db.execute("""
+            SELECT 
+                COUNT(*) as total_validations,
+                COALESCE(SUM(CASE WHEN status = 'correct' THEN 1 ELSE 0 END), 0) as correct_cnt,
+                COALESCE(SUM(CASE WHEN status = 'incorrect' THEN 1 ELSE 0 END), 0) as incorrect_cnt,
+                COALESCE(SUM(CASE WHEN status = 'low_quality' THEN 1 ELSE 0 END), 0) as low_quality_cnt
+            FROM validations
+        """)
+        val_data = dict(await val_cur.fetchone())
+
         return {
             "total_users": total_users,
             "total_speakers": total_speakers,
@@ -521,7 +548,8 @@ async def get_overall_stats():
             "total_recordings": sess_data["total_recordings"],
             "total_duration": round(sess_data["total_duration"], 1),
             "cat_dist": cat_dist,
-            "abandoned_sessions": abandoned_sessions
+            "abandoned_sessions": abandoned_sessions,
+            "validation_stats": val_data
         }
 
 
@@ -542,11 +570,16 @@ async def get_user_stats(user_id: int):
             (user_id,)
         )
         row = await sess_cur.fetchone()
+
+        val_cur = await db.execute("SELECT COUNT(*) as cnt FROM validations WHERE validator_user_id = ?", (user_id,))
+        val_count = (await val_cur.fetchone())["cnt"]
+
         return {
             "speakers_count": speakers_count,
             "completed_sessions": row["completed_sessions"],
             "total_recordings": row["total_recordings"],
-            "total_duration": round(row["total_duration"], 1)
+            "total_duration": round(row["total_duration"], 1),
+            "validated_count": val_count
         }
 
 
@@ -635,6 +668,114 @@ async def get_all_speakers():
         return [dict(r) for r in rows]
 
 
+# ==================== VALIDATIONS (CROWDSOURCED AUDIO VERIFICATION) ====================
+
+async def get_next_recording_for_validation(validator_user_id: int, exclude_ids: list = None):
+    """
+    Tekshirish uchun boshqa foydalanuvchilarning ovozlaridan birini anonim qaytaradi.
+    1. Sessiya 'completed' bo'lishi shart.
+    2. Foydalanuvchi o'zining ovozini tekshira olmaydi (s.user_id != validator_user_id).
+    3. Avval ushbu foydalanuvchi tekshirmagan bo'lishi kerak.
+    4. Anonimlik: Foydalanuvchi ismi, username, user_id sir saqlanadi, faqat spkXXX, jins, yosh, hudud, qurilma va matn beriladi.
+    5. Kamroq tekshirilgan ovozlar birinchi navbatda beriladi.
+    """
+    if exclude_ids is None:
+        exclude_ids = []
+
+    async with get_db() as db:
+        exclude_clause = ""
+        params = [validator_user_id, validator_user_id]
+        if exclude_ids:
+            placeholders = ",".join("?" for _ in exclude_ids)
+            exclude_clause = f"AND r.id NOT IN ({placeholders})"
+            params.extend(exclude_ids)
+
+        query = f"""
+            SELECT 
+                r.id as recording_id,
+                r.file_id,
+                r.file_path,
+                r.duration,
+                p.text as prompt_text,
+                c.title as category_title,
+                c.code as category_code,
+                sp.id as speaker_id,
+                sp.gender as speaker_gender,
+                sp.age as speaker_age,
+                sp.region as speaker_region,
+                sp.device as speaker_device,
+                sp.age_group as speaker_age_group,
+                (SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id) as validation_count
+            FROM recordings r
+            JOIN sessions s ON r.session_id = s.id
+            JOIN prompts p ON r.prompt_id = p.id
+            JOIN categories c ON s.category_id = c.id
+            JOIN speakers sp ON r.speaker_id = sp.id
+            WHERE s.status = 'completed'
+              AND s.user_id != ?
+              AND r.id NOT IN (
+                  SELECT recording_id FROM validations WHERE validator_user_id = ?
+              )
+              {exclude_clause}
+            ORDER BY validation_count ASC, RANDOM()
+            LIMIT 1
+        """
+        cursor = await db.execute(query, tuple(params))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+
+async def add_validation(recording_id: int, validator_user_id: int, status: str) -> bool:
+    """
+    Ovozni tekshirish natijasini saqlash:
+    status: 'correct' (to'g'ri), 'incorrect' (noto'g'ri), 'low_quality' (sifatsiz)
+    """
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    async with get_db() as db:
+        try:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO validations (recording_id, validator_user_id, status, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (recording_id, validator_user_id, status, now)
+            )
+            await db.commit()
+            return True
+        except Exception:
+            return False
+
+
+async def get_recording_validation_summary(recording_id: int):
+    """Bitta audio bo'yicha jami ovozlar va sifat holatini qaytaradi"""
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT 
+                COUNT(*) as total_votes,
+                COALESCE(SUM(CASE WHEN status = 'correct' THEN 1 ELSE 0 END), 0) as correct_votes,
+                COALESCE(SUM(CASE WHEN status = 'incorrect' THEN 1 ELSE 0 END), 0) as incorrect_votes,
+                COALESCE(SUM(CASE WHEN status = 'low_quality' THEN 1 ELSE 0 END), 0) as low_quality_votes
+            FROM validations
+            WHERE recording_id = ?
+            """,
+            (recording_id,)
+        )
+        row = dict(await cursor.fetchone())
+        c = row["correct_votes"]
+        inc = row["incorrect_votes"]
+        lq = row["low_quality_votes"]
+        if inc + lq > c and (inc + lq) >= 2:
+            row["quality_status"] = "rejected"
+        elif c >= 2:
+            row["quality_status"] = "verified"
+        elif c >= 1:
+            row["quality_status"] = "accepted"
+        else:
+            row["quality_status"] = "unreviewed"
+        return row
+
+
 async def get_speech_commands_export_data():
     """
     Google Speech Commands standarti (uz_robot_cmd):
@@ -692,7 +833,7 @@ async def get_speech_commands_export_data():
             "split": split_grp
         }
 
-    # 2. Barcha yozuvlarni olish (kamida 1 ta ovoz yozilganlar)
+    # 2. Barcha yozuvlarni olish (kamida 1 ta ovoz yozilganlar va validatsiya natijalari bilan)
     query = """
         SELECT r.id as recording_id,
                r.file_path,
@@ -703,7 +844,10 @@ async def get_speech_commands_export_data():
                c.code as category_code,
                c.title as category_title,
                r.speaker_id,
-               s.status as session_status
+               s.status as session_status,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'correct'), 0) as val_correct,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'incorrect'), 0) as val_incorrect,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'low_quality'), 0) as val_low_quality
         FROM recordings r
         JOIN prompts p ON r.prompt_id = p.id
         JOIN sessions s ON r.session_id = s.id
@@ -717,6 +861,7 @@ async def get_speech_commands_export_data():
     # 3. Buyruq va takrorlarni hisoblash (Faqat 20 ta robot buyruqlari)
     repeat_tracker = {} # (spk_tag, folder_name) -> count
     export_items = []
+    validations_rows = []
 
     # 20 ta standart robot buyruqlari xaritasi (O'zbekcha buyruq -> Sinf nomi va papka)
     ROBOT_COMMANDS_MAP = {
@@ -789,7 +934,19 @@ async def get_speech_commands_export_data():
         filename = f"{spk_tag}_{cmd_slug}_{repeat_idx:02d}.wav"
         rel_path = f"{folder_name}/{filename}"
 
-        export_items.append({
+        val_c = r.get("val_correct", 0)
+        val_inc = r.get("val_incorrect", 0)
+        val_lq = r.get("val_low_quality", 0)
+        if val_inc + val_lq > val_c and (val_inc + val_lq) >= 2:
+            q_status = "rejected"
+        elif val_c >= 2:
+            q_status = "verified"
+        elif val_c >= 1:
+            q_status = "accepted"
+        else:
+            q_status = "unreviewed"
+
+        item_entry = {
             "original_file_path": r["file_path"],
             "folder_name": folder_name,
             "class_name": class_name,
@@ -801,11 +958,27 @@ async def get_speech_commands_export_data():
             "repeat": repeat_idx,
             "split": spk_info["split"],
             "prompt_text": raw_text,
-            "duration": r["duration"]
+            "duration": r["duration"],
+            "correct_votes": val_c,
+            "incorrect_votes": val_inc,
+            "low_quality_votes": val_lq,
+            "quality_status": q_status
+        }
+        export_items.append(item_entry)
+
+        validations_rows.append({
+            "speaker_id": spk_tag,
+            "command": raw_text,
+            "audio_file": f"{folder_name}/{filename}",
+            "correct_votes": val_c,
+            "incorrect_votes": val_inc,
+            "low_quality_votes": val_lq,
+            "quality_status": q_status
         })
 
     return {
         "speakers": list(speaker_map.values()),
-        "items": export_items
+        "items": export_items,
+        "validations": validations_rows
     }
 

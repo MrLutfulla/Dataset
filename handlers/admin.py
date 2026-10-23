@@ -101,6 +101,14 @@ async def show_admin_stats(callback: CallbackQuery):
         cat_info = "  • Hozircha tasdiqlangan ovozlar yo'q\n"
 
     minutes = round(stats["total_duration"] / 60, 1)
+    val_data = stats.get("validation_stats", {})
+    val_text = (
+        f"🎧 <b>Ovozlar tekshiruvi (Validatsiya):</b>\n"
+        f"  • Jami tekshiruvlar: {val_data.get('total_validations', 0)} ta\n"
+        f"  • ✅ To'g'ri (mos): {val_data.get('correct_cnt', 0)} ta\n"
+        f"  • ❌ Noto'g'ri: {val_data.get('incorrect_cnt', 0)} ta\n"
+        f"  • ⚠️ Sifatsiz/Shovqinli: {val_data.get('low_quality_cnt', 0)} ta\n\n"
+    )
 
     text = (
         "📊 <b>DATASET TIZIMI JONLI STATISTIKASI:</b>\n\n"
@@ -111,6 +119,7 @@ async def show_admin_stats(callback: CallbackQuery):
         f"📁 <b>Datasetdagi jami tasdiqlangan ovozlar:</b> {stats['total_recordings']} ta (.wav)\n"
         f"⏱ <b>Umumiy audio davomiyligi:</b> {stats['total_duration']} sek (~{minutes} daqiqa)\n"
         f"⚠️ <b>Chala qolgan / bekor qilingan:</b> {stats['abandoned_sessions']} ta\n\n"
+        f"{val_text}"
         f"<b>To'plamlar bo'yicha to'plangan ovozlar:</b>\n{cat_info}"
     )
 
@@ -217,6 +226,22 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
             zipf.writestr("uz_robot_cmd/validation_list.txt", "\n".join(val_list).encode("utf-8"))
             zipf.writestr("uz_robot_cmd/testing_list.txt", "\n".join(test_list).encode("utf-8"))
 
+            # Validatsiya va sifat ma'lumotlari (Crowdsourced validation results)
+            val_csv_out = io.StringIO()
+            val_writer = csv.writer(val_csv_out)
+            val_writer.writerow(["audio_path", "speaker_id", "command", "correct_votes", "incorrect_votes", "low_quality_votes", "quality_status"])
+            for r_val in data.get("validations", []):
+                val_writer.writerow([
+                    r_val["audio_file"],
+                    r_val["speaker_id"],
+                    r_val["command"],
+                    r_val["correct_votes"],
+                    r_val["incorrect_votes"],
+                    r_val["low_quality_votes"],
+                    r_val["quality_status"]
+                ])
+            zipf.writestr("uz_robot_cmd/validations.csv", ("\ufeff" + val_csv_out.getvalue()).encode("utf-8"))
+
             readme_text = (
                 "Google Speech Commands standarti (O'zbek tili - uz_robot_cmd)\n"
                 "===========================================================\n"
@@ -225,7 +250,8 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
                 "3. Fayl nomlari: spkXXX_buyruq_takror.wav\n"
                 "4. speakers.csv: speaker_id, jins, yosh_guruhi, hudud, qurilma\n"
                 "5. splits.csv: 80% train, 10% val, 10% test (speaker-disjoint)\n"
-                "6. validation_list.txt va testing_list.txt: rasmiy Speech Commands loaderlari uchun.\n"
+                "6. validations.csv: Crowdsourced audio tekshiruvlari va sifat ko'rsatkichlari\n"
+                "7. validation_list.txt va testing_list.txt: rasmiy Speech Commands loaderlari uchun.\n"
             )
             zipf.writestr("uz_robot_cmd/README.txt", readme_text.encode("utf-8"))
 
@@ -237,7 +263,7 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
             "🎚 <b>Audio formati:</b> 16 kHz, 16-bit mono WAV, roppa-rosa 1.0s (buyruq markazda)\n"
             "⚖️ <b>Bo'linmalar:</b> 80% train / 10% val / 10% test (splits.csv)\n"
             "📂 <b>Tuzilma:</b> `uz_robot_cmd/[buyruq]/spkXXX_buyruq_01.wav`\n"
-            "📄 <b>Fayllar:</b> `speakers.csv`, `splits.csv`, `validation_list.txt`, `testing_list.txt`"
+            "📄 <b>Fayllar:</b> `speakers.csv`, `splits.csv`, `validations.csv`, `validation_list.txt`, `testing_list.txt`"
         )
         await bot.send_document(chat_id=callback.from_user.id, document=doc, caption=caption, parse_mode="HTML")
         await status_msg.delete()

@@ -5,10 +5,13 @@ def get_main_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     keyboard = [
         [
             KeyboardButton(text="🎙 Ovoz yozish"),
-            KeyboardButton(text="👤 Spikerlarim")
+            KeyboardButton(text="🎧 Ovoz tekshirish")
         ],
         [
-            KeyboardButton(text="📂 To'plamlar"),
+            KeyboardButton(text="👤 Spikerlarim"),
+            KeyboardButton(text="📂 To'plamlar")
+        ],
+        [
             KeyboardButton(text="📊 Mening hissam")
         ]
     ]

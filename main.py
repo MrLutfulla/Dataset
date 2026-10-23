@@ -23,6 +23,7 @@ async def set_bot_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="🏠 Asosiy menyu"),
         BotCommand(command="record", description="🎙 Ovoz yozish (to'plam tanlash)"),
+        BotCommand(command="validate", description="🎧 Ovoz tekshirish va baholash"),
         BotCommand(command="speakers", description="👤 Spikerlarim (odam almashtirish/qo'shish)"),
         BotCommand(command="collections", description="📂 Dataset to'plamlari"),
         BotCommand(command="mystats", description="📊 Mening hissam va statistikam"),

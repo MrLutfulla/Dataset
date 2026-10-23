@@ -40,10 +40,10 @@ async def cmd_start(message: Message, state: FSMContext):
         "yuqori sifatli dataset yig'ishga xizmat qiladi.\n\n"
         "📌 <b>Imkoniyatlar:</b>\n"
         "• Bitta profildan bir nechta spikerlar (oila a'zolari, do'stlar) nomidan ovoz yozish;\n"
-        "• Turli toifalar (kitobiy, quvnoq, xafa, asabiy, buyruqlar);\n"
+        "• Boshqa foydalanuvchilar ovozini anonim tinglab tekshirish va sifatini baholash;\n"
         "• To'liq yakunlangan sessiyalarni sifatli arxivlash.\n\n"
         f"👤 <b>Hozirgi faol spiker:</b> {speaker_info}\n\n"
-        "Boshlash uchun pastdagi <b>🎙 Ovoz yozish</b> yoki <b>👤 Spikerlarim</b> tugmasini bosing!"
+        "Boshlash uchun pastdagi <b>🎙 Ovoz yozish</b> yoki <b>🎧 Ovoz tekshirish</b> tugmasini bosing!"
     )
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
@@ -72,9 +72,11 @@ async def cmd_help(message: Message):
         "Bitta telefondan istalgancha odam uchun alohida profil ochishingiz mumkin.\n"
         "2. <b>📂 To'plamlar:</b> Qaysi yo'nalishda (kitobiy, hissiyotli yoki buyruqlar) ovoz yozishni ko'rishingiz mumkin.\n"
         "3. <b>🎙 Ovoz yozish:</b> Bosganda to'plamni tanlaysiz va berilgan matnlarni ketma-ket mikrofon orqali o'qib yuborasiz.\n"
-        "4. <b>📦 Sessiya qoidasi:</b> Har bir to'plamdagi barcha buyruqlar (20 ta buyruq) to'liq ketma-ket o'qiladi. Barcha ovozlar toza 16kHz WAV formatida saqlanadi!\n\n"
+        "4. <b>🎧 Ovoz tekshirish:</b> Boshqa ishtirokchilar yozgan ovozlarni anonim tarzda tinglab, matnga mosligi va sifatini baholaysiz.\n"
+        "5. <b>📦 Sessiya qoidasi:</b> Har bir to'plamdagi barcha buyruqlar (20 ta buyruq) to'liq ketma-ket o'qiladi. Barcha ovozlar toza 16kHz WAV formatida saqlanadi!\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
-        "/record — Ovoz yozishni boshlash (to'plam tanlash)\n"
+        "/record — Ovoz yozishni boshlash\n"
+        "/validate — Ovoz tekshirish va baholash\n"
         "/speakers — Spikerlar boshqaruvi\n"
         "/collections — To'plamlar ro'yxati\n"
         "/mystats — Shaxsiy hissa statistikasi\n"
@@ -94,6 +96,7 @@ async def cmd_my_stats(message: Message):
         f"👥 <b>Yaratilgan spikerlar soni:</b> {stats['speakers_count']} ta\n"
         f"🏆 <b>To'liq yakunlangan sessiyalar:</b> {stats['completed_sessions']} ta\n"
         f"🎙 <b>Tasdiqlangan ovozlar:</b> {stats['total_recordings']} ta\n"
+        f"🎧 <b>Tekshirib baholangan ovozlar:</b> {stats.get('validated_count', 0)} ta\n"
         f"⏱ <b>Umumiy audio davomiyligi:</b> {stats['total_duration']} soniya\n\n"
         "<i>Sun'iy intellektimiz rivojiga qo'shayotgan hissangiz uchun rahmat!</i>"
     )
