@@ -654,7 +654,6 @@ async def get_speech_commands_export_data():
         
         hudud = sp.get("region") or "Toshkent"
         qurilma = sp.get("device") or "smartfon"
-        muhit = sp.get("environment") or "xona"
 
         # 80% train, 10% val, 10% test (speaker-disjoint split)
         # Deterministik va adolatli taqsimlash
@@ -681,7 +680,6 @@ async def get_speech_commands_export_data():
             "yosh_guruhi": age_grp,
             "hudud": hudud,
             "qurilma": qurilma,
-            "muhit": muhit,
             "split": split_grp
         }
 
@@ -707,7 +705,7 @@ async def get_speech_commands_export_data():
         cursor = await db.execute(query)
         recordings = [dict(r) for r in await cursor.fetchall()]
 
-    # 3. Buyruq va takrorlarni hisoblash
+    # 3. Buyruq va takrorlarni hisoblash (Faqat 20 ta robot buyruqlari)
     repeat_tracker = {} # (spk_tag, folder_name) -> count
     export_items = []
 
@@ -752,36 +750,24 @@ async def get_speech_commands_export_data():
         raw_text = r["prompt_text"].strip()
         prompt_clean = raw_text.lower()
         prompt_clean = re.sub(r"[^\w\s']", "", prompt_clean).strip()
-        cat_code = r.get("category_code", "")
 
-        # Buyruq papkasi va sinf nomini aniqlash
-        if cat_code == "background_noise" or "shovqin" in prompt_clean or "jimlik" in prompt_clean:
-            folder_name = "_background_"
-            class_name = "_BACKGROUND_"
-            cmd_slug = "background"
-        elif prompt_clean in ROBOT_COMMANDS_MAP:
-            info = ROBOT_COMMANDS_MAP[prompt_clean]
-            folder_name = info["folder"]
-            class_name = info["class"]
-            cmd_slug = info["folder"]
-        elif cat_code == "unknown_words":
-            folder_name = "_unknown_"
-            class_name = "_UNKNOWN_"
-            cmd_slug = re.sub(r"\s+", "_", prompt_clean) or "word"
+        # Buyruq papkasi va sinf nomini aniqlash (faqat 20 ta buyruq)
+        matched_info = None
+        if prompt_clean in ROBOT_COMMANDS_MAP:
+            matched_info = ROBOT_COMMANDS_MAP[prompt_clean]
         else:
-            # Matn ichidan 20 ta buyruq kalitlarini qidirish
-            matched = False
             for k, val in ROBOT_COMMANDS_MAP.items():
                 if k in prompt_clean:
-                    folder_name = val["folder"]
-                    class_name = val["class"]
-                    cmd_slug = val["folder"]
-                    matched = True
+                    matched_info = val
                     break
-            if not matched:
-                folder_name = "_unknown_"
-                class_name = "_UNKNOWN_"
-                cmd_slug = re.sub(r"\s+", "_", prompt_clean)[:15]
+
+        # Begona so'zlar va background chiqarib tashlanadi, faqat 20 ta buyruq qoladi
+        if not matched_info:
+            continue
+
+        folder_name = matched_info["folder"]
+        class_name = matched_info["class"]
+        cmd_slug = matched_info["folder"]
 
         spk_tag = spk_info["speaker_id"]
         key = (spk_tag, folder_name)

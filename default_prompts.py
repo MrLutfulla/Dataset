@@ -30,16 +30,6 @@ DEFAULT_CATEGORIES = [
         "description": "Google Speech Commands standarti: 20 ta aniq robot harakat va boshqaruv buyruqlari."
     },
     {
-        "code": "unknown_words",
-        "title": "📦 _unknown_ (Begona so'zlar)",
-        "description": "Robot adashmasligi uchun fon/begona so'zlar to'plami."
-    },
-    {
-        "code": "background_noise",
-        "title": "🎧 _background_ (Shovqin va Jimlik)",
-        "description": "Atrof-muhit shovqini, xona jimligi (10-60 soniyalik yozuvlar)."
-    },
-    {
         "code": "neutral",
         "title": "📖 Umumiy ASR (Kitobiy/Neytral)",
         "description": "Ovozni matnga aylantirish (Speech-to-Text) uchun ravon, xolis va kitobiy jumlalar."
@@ -63,23 +53,6 @@ DEFAULT_CATEGORIES = [
 
 DEFAULT_PROMPTS = {
     "robot_cmd": [item["text"] for item in ROBOT_20_COMMANDS],
-    "unknown_words": [
-        "non",
-        "kitob",
-        "olma",
-        "suv",
-        "qalam",
-        "daraxt",
-        "havo",
-        "uy",
-        "stol",
-        "daftar"
-    ],
-    "background_noise": [
-        "sokin xona jimligi (15-30 soniya mikrofonni ushlab turing)",
-        "ofis fon shovqini (15-30 soniya mikrofonni ushlab turing)",
-        "ko'cha yoki transport shovqini (15-30 soniya mikrofonni ushlab turing)"
-    ],
     "neutral": [
         "O'zbekiston Markaziy Osiyoning yuragida joylashgan go'zal mamlakatdir.",
         "Sun'iy intellekt texnologiyalari ta'lim sifatini oshirishga katta hissa qo'shmoqda.",

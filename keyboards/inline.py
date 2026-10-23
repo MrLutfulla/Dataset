@@ -121,22 +121,6 @@ def get_device_inline_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
-def get_environment_inline_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🏠 Sokin xona", callback_data="set_env:xona"),
-            InlineKeyboardButton(text="🏢 Ofis / Ishxona", callback_data="set_env:ofis")
-        ],
-        [
-            InlineKeyboardButton(text="🚗 Mashina / Transport", callback_data="set_env:avto"),
-            InlineKeyboardButton(text="🌳 Ko'cha / Shovqinli joy", callback_data="set_env:ko'cha")
-        ],
-        [
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_action")
-        ]
-    ])
-
-
 def get_admin_users_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [

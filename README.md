@@ -9,15 +9,15 @@ Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), robototexnika va nutq b
 1. **Google Speech Commands Standarti (`uz_robot_cmd`):**
    - **Audio formati:** WAV, 16 kHz, 16-bit PCM, mono, uzunligi roppa-rosa **1.0 soniya** (16000 ta sample);
    - **Avtomatik markazlashtirish:** Buyruq audio markazida bo'ladi, oldi va ortida tabiiy jimlik (silence padding) qoldiriladi;
-   - **Papka tuzilmasi:** Har bir buyruq uchun alohida papka (`oldinga/`, `orqaga/`, `chapga/`, `o'ngga/`, `to'xta/`, `_unknown_/`, `_background_/`);
-   - **Fayl nomi:** `diktoriD_buyruq_takror.wav` (masalan: `spk001_oldinga_01.wav`);
-   - **`speakers.csv`:** `speaker_id, jins, yosh_guruhi, hudud, qurilma, muhit`;
+   - **Papka tuzilmasi:** Har bir buyruq uchun alohida papka (`forward/`, `backward/`, `left/`, `right/`, `stop/`, `arm_up/`...);
+   - **Fayl nomi:** `diktoriD_buyruq_takror.wav` (masalan: `spk001_forward_01.wav`);
+   - **`speakers.csv`:** `speaker_id, jins, yosh_guruhi, hudud, qurilma`;
    - **`splits.csv`:** Har bir diktor faqat bitta guruhda bo'ladi (80% train, 10% val, 10% test);
    - **`validation_list.txt` va `testing_list.txt`:** TensorFlow / PyTorch rasmiy loaderlari uchun tayyor fayllar.
 
 2. **Ko'p Spikerli Tizim (Multi-Speaker):**
    - Bitta Telegram akkauntidan bir nechta inson nomidan ovoz yozish;
-   - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi**, **Yosh guruhi**, **Hudud**, **Qurilma** va **Muhit** saqlanadi.
+   - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi**, **Yosh guruhi**, **Hudud** va **Qurilma** saqlanadi.
 
 3. **Robot Buyruqlari (uz_robot_cmd - 20 ta asosiy buyruq):**
 | № | O‘zbekcha buyruq | Sinf nomi (Class) | Vazifasi | Papka |
@@ -44,8 +44,6 @@ Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), robototexnika va nutq b
 | 20 | Takrorla | REPEAT | Oxirgi amalni takrorlash | `repeat/` |
 
 Qo'shimcha toifalar:
-- 📦 **_unknown_ (Begona so'zlar):** non, kitob, olma, suv, qalam, daraxt...;
-- 🎧 **_background_ (Shovqin va Jimlik):** Xona sukunati, ofis, ko'cha shovqini (10-60 soniya);
 - 📖 **Umumiy ASR (Kitobiy/Neytral);**
 - 😊 **Hissiyotlar (Quvnoq, Yig'lamsirab, G'azabli).**
 
@@ -90,8 +88,6 @@ uz_robot_cmd/
 ├── release/            # Qo'yib yubor (RELEASE)
 ├── status/             # Holatingni ko'rsat (STATUS)
 ├── repeat/             # Takrorla (REPEAT)
-├── _unknown_/          # Begona so'zlar (non, kitob, olma...)
-├── _background_/       # Shovqin va jimlik (10-60s)
 ├── speakers.csv        # Diktorlar metama'lumotlari
 ├── splits.csv          # 80/10/10 train/val/test taqsimoti
 ├── validation_list.txt # Rasmiy validation ro'yxati
@@ -101,16 +97,16 @@ uz_robot_cmd/
 
 ### `speakers.csv` namunasi:
 ```csv
-speaker_id,jins,yosh_guruhi,hudud,qurilma,muhit
-spk001,ayol,18-25,Toshkent,smartfon,xona
-spk002,erkak,26-40,Samarqand,naushnik,ofis
+speaker_id,jins,yosh_guruhi,hudud,qurilma
+spk001,ayol,18-25,Toshkent,smartfon
+spk002,erkak,26-40,Samarqand,naushnik
 ```
 
 ### `splits.csv` namunasi:
 ```csv
-audio_path,speaker_id,command,split
-oldinga/spk001_oldinga_01.wav,spk001,oldinga,train
-oldinga/spk002_oldinga_01.wav,spk002,oldinga,test
+audio_path,speaker_id,command,class_name,split
+forward/spk001_forward_01.wav,spk001,Oldinga yur,FORWARD,train
+forward/spk002_forward_01.wav,spk002,Oldinga yur,FORWARD,test
 ```
 
 ---

@@ -165,15 +165,14 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
     # 1. speakers.csv
     spk_csv_out = io.StringIO()
     spk_writer = csv.writer(spk_csv_out)
-    spk_writer.writerow(["speaker_id", "jins", "yosh_guruhi", "hudud", "qurilma", "muhit"])
+    spk_writer.writerow(["speaker_id", "jins", "yosh_guruhi", "hudud", "qurilma"])
     for sp in speakers:
         spk_writer.writerow([
             sp["speaker_id"],
             sp["jins"],
             sp["yosh_guruhi"],
             sp["hudud"],
-            sp["qurilma"],
-            sp["muhit"]
+            sp["qurilma"]
         ])
 
     # 2. splits.csv
@@ -195,10 +194,7 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
                     continue
 
                 cached_wav = temp_process_dir / it["filename"]
-                if it["folder_name"] == "_background_":
-                    cached_wav = orig_file
-                else:
-                    center_and_pad_to_1sec(orig_file, cached_wav, target_samples=16000)
+                center_and_pad_to_1sec(orig_file, cached_wav, target_samples=16000)
 
                 arc_name = f"uz_robot_cmd/{it['folder_name']}/{it['filename']}"
                 zipf.write(cached_wav, arcname=arc_name)
@@ -227,7 +223,7 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
                 "1. Format: 16 kHz, 16-bit PCM, mono WAV, uzunligi roppa-rosa 1.0 soniya.\n"
                 "2. Buyruq audio markazida joylashgan, oldi va ortida jimlik qoldirilgan.\n"
                 "3. Fayl nomlari: spkXXX_buyruq_takror.wav\n"
-                "4. speakers.csv: speaker_id, jins, yosh_guruhi, hudud, qurilma, muhit\n"
+                "4. speakers.csv: speaker_id, jins, yosh_guruhi, hudud, qurilma\n"
                 "5. splits.csv: 80% train, 10% val, 10% test (speaker-disjoint)\n"
                 "6. validation_list.txt va testing_list.txt: rasmiy Speech Commands loaderlari uchun.\n"
             )
