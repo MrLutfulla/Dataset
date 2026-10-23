@@ -19,7 +19,7 @@ Sun'iy intellekt, ovozni matnga aylantirish (ASR / STT), robototexnika va nutq b
    - Bitta Telegram akkauntidan bir nechta inson nomidan ovoz yozish;
    - Har bir spiker uchun: **Ism**, **Jinsi** (Erkak/Ayol), **Yoshi**, **Yosh guruhi**, **Hudud** va **Qurilma** saqlanadi.
 
-3. **Robot Buyruqlari (uz_robot_cmd - 20 ta asosiy buyruq):**
+3. **🗣 Qisqa Buyruqlar (uz_robot_cmd - 20 ta asosiy buyruq):**
 | № | O‘zbekcha buyruq | Sinf nomi (Class) | Vazifasi | Papka |
 |:---:|:---|:---:|:---|:---|
 | 1 | Oldinga yur | FORWARD | Oldinga harakat | `forward/` |

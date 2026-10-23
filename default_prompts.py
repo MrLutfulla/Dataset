@@ -25,9 +25,9 @@ ROBOT_20_COMMANDS = [
 
 DEFAULT_CATEGORIES = [
     {
-        "code": "robot_cmd",
-        "title": "🤖 Robot Buyruqlari (uz_robot_cmd - 20 ta)",
-        "description": "Google Speech Commands standarti: 20 ta aniq robot harakat va boshqaruv buyruqlari."
+        "code": "commands",
+        "title": "🗣 Qisqa Buyruqlar (20 ta)",
+        "description": "Google Speech Commands standarti: 20 ta aniq harakat va boshqaruv buyruqlari."
     },
     {
         "code": "neutral",
@@ -52,7 +52,7 @@ DEFAULT_CATEGORIES = [
 ]
 
 DEFAULT_PROMPTS = {
-    "robot_cmd": [item["text"] for item in ROBOT_20_COMMANDS],
+    "commands": [item["text"] for item in ROBOT_20_COMMANDS],
     "neutral": [
         "O'zbekiston Markaziy Osiyoning yuragida joylashgan go'zal mamlakatdir.",
         "Sun'iy intellekt texnologiyalari ta'lim sifatini oshirishga katta hissa qo'shmoqda.",
