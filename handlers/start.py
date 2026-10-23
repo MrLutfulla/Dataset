@@ -1,14 +1,22 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-from database import get_or_create_user, get_user_stats, is_admin, get_speaker
+from database import get_or_create_user, get_user_stats, is_admin, get_speaker, cancel_session
 from keyboards.main_menu import get_main_keyboard
 
 router = Router()
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+    # Har qanday eski holat yoki chala sessiyani tozalaymiz
+    data = await state.get_data()
+    session_id = data.get("session_id")
+    if session_id:
+        await cancel_session(session_id)
+    await state.clear()
+
     user = await get_or_create_user(
         user_id=message.from_user.id,
         username=message.from_user.username,
@@ -38,6 +46,19 @@ async def cmd_start(message: Message):
         "Boshlash uchun pastdagi <b>🎙 Ovoz yozish</b> yoki <b>👤 Spikerlarim</b> tugmasini bosing!"
     )
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.message(F.text == "🏠 Asosiy menyu")
+@router.message(Command("cancel"))
+async def cmd_cancel_and_home(message: Message, state: FSMContext):
+    data = await state.get_data()
+    session_id = data.get("session_id")
+    if session_id:
+        await cancel_session(session_id)
+    await state.clear()
+    admin_status = await is_admin(message.from_user.id)
+    kb = get_main_keyboard(is_admin=admin_status)
+    await message.answer("🏠 Asosiy menyudasiz. Kerakli bo'limni tanlang:", reply_markup=kb)
 
 
 @router.message(Command("help"))

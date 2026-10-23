@@ -180,6 +180,58 @@ async def cancel_recording_flow(message: Message, state: FSMContext):
     )
 
 
+@router.message(
+    RecordingSG.recording_voice,
+    F.text.in_([
+        "🎙 Ovoz yozish", "👤 Spikerlarim", "📂 To'plamlar", "🎭 Toifalar",
+        "📊 Mening hissam", "⚙️ Admin Panel", "🏠 Asosiy menyu"
+    ])
+)
+@router.message(
+    RecordingSG.recording_voice,
+    Command("start", "record", "speakers", "collections", "categories", "mystats", "admin", "help")
+)
+async def break_out_of_recording(message: Message, state: FSMContext):
+    data = await state.get_data()
+    session_id = data.get("session_id")
+    if session_id:
+        await cancel_session(session_id)
+    await state.clear()
+
+    text = message.text or ""
+    if text in ("🎙 Ovoz yozish", "/record"):
+        await start_recording_flow(message, state)
+    elif text in ("👤 Spikerlarim", "/speakers"):
+        from handlers.speakers import show_speakers
+        await show_speakers(message, state)
+    elif text in ("📂 To'plamlar", "🎭 Toifalar", "/collections", "/categories"):
+        from handlers.categories import show_categories
+        await show_categories(message)
+    elif text in ("📊 Mening hissam", "/mystats"):
+        from handlers.start import cmd_my_stats
+        await cmd_my_stats(message)
+    elif text in ("⚙️ Admin Panel", "/admin"):
+        from handlers.admin import show_admin_panel
+        await show_admin_panel(message)
+    else:
+        from handlers.start import cmd_start
+        await cmd_start(message, state)
+
+
+@router.callback_query(F.data == "cancel_active_session")
+async def callback_cancel_session(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    session_id = data.get("session_id")
+    if session_id:
+        await cancel_session(session_id)
+    await state.clear()
+    admin_status = await is_admin(callback.from_user.id)
+    kb = get_main_keyboard(is_admin=admin_status)
+    await callback.message.edit_text("❌ <b>Ovoz yozish sessiyasi bekor qilindi.</b>", parse_mode="HTML")
+    await callback.message.answer("🏠 Asosiy menyudasiz:", reply_markup=kb)
+    await callback.answer()
+
+
 @router.message(RecordingSG.recording_voice, F.voice)
 async def process_voice_message(message: Message, state: FSMContext, bot: Bot):
     voice = message.voice
@@ -275,9 +327,34 @@ async def process_voice_message(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(RecordingSG.recording_voice)
 async def process_wrong_message_during_recording(message: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Sessiyani bekor qilish", callback_data="cancel_active_session")]
+    ])
     await message.answer(
-        "⚠️ <b>Iltimos, ovozli xabar (Voice) yuboring!</b>\n"
-        "Matnni o'qib, mikrofoni bosib turing.\n\n"
-        "Agar jarayonni to'xtatmoqchi bo'lsangiz, '❌ Yozishni bekor qilish' tugmasini bosing.",
+        "⚠️ <b>Iltimos, faqat ovozli xabar (Voice) yuboring!</b>\n"
+        "Matnni o'qib, pastdagi mikrofon tugmasini bosib turing.\n\n"
+        "Jarayonni to'xtatmoqchi bo'lsangiz, pastdagi tugmani bosing:",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+
+
+@router.message(F.voice)
+async def process_voice_outside_session(message: Message):
+    await message.answer(
+        "ℹ️ <b>Ovoz qabul qilinmadi!</b>\n\n"
+        "Ovoz yozishni boshlash uchun avval pastdagi <b>🎙 Ovoz yozish</b> tugmasini bosing va kerakli to'plamni tanlang.",
         parse_mode="HTML"
+    )
+
+
+@router.message()
+async def process_unhandled_message(message: Message):
+    admin_status = await is_admin(message.from_user.id)
+    kb = get_main_keyboard(is_admin=admin_status)
+    await message.answer(
+        "ℹ️ Buyruq tushunarsiz.\n\n"
+        "Kerakli bo'limni tanlash uchun quyidagi menyu tugmalaridan foydalaning:",
+        parse_mode="HTML",
+        reply_markup=kb
     )

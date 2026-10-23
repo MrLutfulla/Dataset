@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from database import (
     get_or_create_user,
@@ -18,7 +19,9 @@ router = Router()
 @router.message(Command("collections"))
 @router.message(Command("categories"))
 @router.message(Command("category"))
-async def show_categories(message: Message):
+async def show_categories(message: Message, state: FSMContext = None):
+    if state:
+        await state.clear()
     user = await get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     categories = await get_categories()
     active_cat_id = user.get("active_category_id")

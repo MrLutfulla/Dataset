@@ -132,6 +132,9 @@ async def init_db():
                             "INSERT INTO prompts (category_id, text) VALUES (?, ?)",
                             (cat_id, p_text)
                         )
+
+        # Bot qayta ishga tushganda chala qolgan eski sessiyalarni bekor qilish
+        await db.execute("UPDATE sessions SET status = 'cancelled' WHERE status = 'in_progress'")
         await db.commit()
 
 
@@ -753,7 +756,9 @@ async def get_speech_commands_export_data():
         if not spk_info:
             continue
 
-        raw_text = r["prompt_text"].strip()
+        raw_text = (r["prompt_text"] or "").strip() if "prompt_text" in r and r["prompt_text"] else ""
+        if not raw_text:
+            continue
         prompt_clean = raw_text.lower()
         prompt_clean = re.sub(r"[^\w\s']", "", prompt_clean).strip()
 

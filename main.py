@@ -41,10 +41,14 @@ async def main():
     await init_db()
     logger.info("Ma'lumotlar bazasi tayyor!")
 
-    # Aiogram 3.x bot va dispatcher (SSL xatoliklarini oldini olish uchun xavfsiz connector)
+    # Aiogram 3.x bot va dispatcher (SSL va Windows tarmoq muammolarini bartaraf etuvchi barqaror sozlamalar)
+    import socket
     from aiogram.client.session.aiohttp import AiohttpSession
     session = AiohttpSession()
     session._connector_init['ssl'] = False
+    session._connector_init['family'] = socket.AF_INET
+    session._connector_init['limit'] = 50
+    session._connector_init['keepalive_timeout'] = 30
 
     bot = Bot(
         token=BOT_TOKEN,
@@ -59,10 +63,23 @@ async def main():
     # Telegram komandalar menyusini o'rnatish
     await set_bot_commands(bot)
 
-    logger.info("Bot muvaffaqiyatli ishga tushdi! Polling boshlanmoqda...")
-    # Eski update larni tashlab yuborish
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    # Eski update larni tozalab, barqaror polling boshlash
+    while True:
+        try:
+            logger.info("Bot muvaffaqiyatli ishga tushdi! Polling boshlanmoqda...")
+            await bot.delete_webhook(drop_pending_updates=True)
+            await dp.start_polling(
+                bot,
+                polling_timeout=20,
+                handle_signals=False if sys.platform == "win32" else True
+            )
+            break
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Bot to'xtatildi.")
+            break
+        except Exception as e:
+            logger.error(f"Polling uzilishi yuz berdi: {e}. 5 soniyadan so'ng qayta ulanadi...")
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":

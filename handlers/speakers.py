@@ -32,7 +32,14 @@ class AddSpeakerSG(StatesGroup):
 
 @router.message(F.text == "👤 Spikerlarim")
 @router.message(Command("speakers"))
-async def show_speakers(message: Message):
+async def show_speakers(message: Message, state: FSMContext):
+    data = await state.get_data()
+    session_id = data.get("session_id")
+    if session_id:
+        from database import cancel_session
+        await cancel_session(session_id)
+    await state.clear()
+
     user = await get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     speakers = await get_speakers_by_user(message.from_user.id)
     active_id = user.get("active_speaker_id")
@@ -95,7 +102,16 @@ async def start_add_speaker(callback: CallbackQuery, state: FSMContext):
 
 @router.message(AddSpeakerSG.waiting_for_name)
 async def process_speaker_name(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Iltimos, matn ko'rinishida ism kiriting:")
+        return
+
     name = message.text.strip()
+    if name.startswith("/") or name in ("❌ Bekor qilish", "🏠 Asosiy menyu", "🎙 Ovoz yozish", "👤 Spikerlarim", "📂 To'plamlar", "📊 Mening hissam"):
+        await state.clear()
+        await message.answer("❌ Spiker qo'shish bekor qilindi.")
+        return
+
     if len(name) < 2 or len(name) > 40:
         await message.answer("Iltimos, 2 tadan 40 tagacha belgidan iborat to'g'ri ism kiriting:")
         return
