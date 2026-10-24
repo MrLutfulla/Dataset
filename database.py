@@ -152,9 +152,12 @@ async def init_db():
         # Bot qayta ishga tushganda chala qolgan eski sessiyalarni bekor qilish
         await db.execute("UPDATE sessions SET status = 'cancelled' WHERE status = 'in_progress'")
 
-        # Adminlarni avtomatik bazada admin rolida tasdiqlash
-        for aid in ADMIN_IDS:
-            await db.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (aid,))
+        # Adminlarni avtomatik bazada admin rolida tasdiqlash, qolganlarini user qilish
+        if ADMIN_IDS:
+            placeholders = ",".join("?" for _ in ADMIN_IDS)
+            await db.execute(f"UPDATE users SET role = 'user' WHERE role = 'admin' AND user_id NOT IN ({placeholders})", tuple(ADMIN_IDS))
+            for aid in ADMIN_IDS:
+                await db.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (aid,))
         await db.commit()
 
 
@@ -186,6 +189,11 @@ async def get_or_create_user(user_id: int, username: str = None, first_name: str
         else:
             if user_id in ADMIN_IDS and user["role"] not in ("admin", "superadmin"):
                 await db.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (user_id,))
+                await db.commit()
+                cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+                user = await cursor.fetchone()
+            elif user_id not in ADMIN_IDS and user["role"] in ("admin", "superadmin"):
+                await db.execute("UPDATE users SET role = 'user' WHERE user_id = ?", (user_id,))
                 await db.commit()
                 cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
                 user = await cursor.fetchone()
