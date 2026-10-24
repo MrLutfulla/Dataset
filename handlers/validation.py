@@ -34,10 +34,12 @@ async def send_validation_prompt(chat_id: int, user_id: int, bot: Bot, state: FS
         await bot.send_message(
             chat_id=chat_id,
             text=(
-                "🎉 <b>Hozircha tekshirish uchun yangi ovozlar yo'q!</b>\n\n"
-                "• Barcha mavjud ovozlar tekshirib bo'lingan yoki faqat o'zingiz yozgan ovozlar qolgan.\n"
-                "• Yangi ovozlar yozilgach, yana urinib ko'rishingiz mumkin.\n\n"
-                "<i>Dataset sifatini oshirishga qo'shayotgan hissangiz uchun rahmat!</i>"
+                "🎉 <b>Boshqa ishtirokchilarning barcha ovozlarini tekshirib bo'ldingiz!</b>\n\n"
+                "🔒 <b>Taqsimlash qoidasi:</b>\n"
+                "• Tizimda hech kimga o'zi yozgan ovoz tekshirish uchun berilmaydi;\n"
+                "• Siz yozgan ovozlar xolis baholanishi uchun boshqa ishtirokchilarga yuboriladi;\n"
+                "• Boshqa ishtirokchilar yangi ovoz yozishi bilan ular yana sizga tekshirish uchun navbat bilan beriladi.\n\n"
+                "<i>Dataset sifatini oshirishga qo'shgan hissangiz uchun katta rahmat!</i>"
             ),
             parse_mode="HTML",
             reply_markup=kb_main

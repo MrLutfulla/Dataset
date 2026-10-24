@@ -860,7 +860,7 @@ async def get_next_recording_for_validation(validator_user_id: int, exclude_ids:
 
     async with get_db() as db:
         exclude_clause = ""
-        params = [validator_user_id, validator_user_id]
+        params = [validator_user_id, validator_user_id, validator_user_id]
         if exclude_ids:
             placeholders = ",".join("?" for _ in exclude_ids)
             exclude_clause = f"AND r.id NOT IN ({placeholders})"
@@ -889,6 +889,7 @@ async def get_next_recording_for_validation(validator_user_id: int, exclude_ids:
             JOIN speakers sp ON r.speaker_id = sp.id
             WHERE s.status = 'completed'
               AND s.user_id != ?
+              AND sp.user_id != ?
               AND r.id NOT IN (
                   SELECT recording_id FROM validations WHERE validator_user_id = ?
               )
