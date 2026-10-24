@@ -46,7 +46,11 @@ def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📊 Jonli Statistika", callback_data="admin_stats"),
-            InlineKeyboardButton(text="📦 Datasetni ZIP Yuklash", callback_data="admin_export_menu")
+            InlineKeyboardButton(text="🔬 Ilmiy Sifat Tahlili", callback_data="admin_scientific_audit")
+        ],
+        [
+            InlineKeyboardButton(text="📦 Datasetni ZIP Yuklash", callback_data="admin_export_menu"),
+            InlineKeyboardButton(text="⚠️ Shubhali Audiolar Nazorati", callback_data="admin_review_flagged")
         ],
         [
             InlineKeyboardButton(text="👥 Foydalanuvchilar & Guruhlar", callback_data="admin_users_menu")
@@ -131,7 +135,7 @@ def get_admin_users_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👩 Ayol Spikerlar", callback_data="admin_filter:gender_female")
         ],
         [
-            InlineKeyboardButton(text="👶 O'smirlar (<18)", callback_data="admin_filter:age_teen"),
+            InlineKeyboardButton(text="👶 O'smirlar (18 yoshgacha)", callback_data="admin_filter:age_teen"),
             InlineKeyboardButton(text="🧑 Yoshlar (18-25)", callback_data="admin_filter:age_youth")
         ],
         [
@@ -179,3 +183,16 @@ def get_category_selection_for_upload(categories: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_menu")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_flagged_review_keyboard(recording_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Aslida To'g'ri (Tasdiqlash)", callback_data=f"flag_resolve:{recording_id}:approve"),
+            InlineKeyboardButton(text="🗑 Datasetdan O'chirish", callback_data=f"flag_resolve:{recording_id}:reject")
+        ],
+        [
+            InlineKeyboardButton(text="⏩ Keyingisiga o'tish", callback_data="admin_review_flagged"),
+            InlineKeyboardButton(text="⬅️ Admin Menyu", callback_data="admin_menu")
+        ]
+    ])

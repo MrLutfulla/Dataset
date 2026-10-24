@@ -21,12 +21,74 @@ def get_exact_wav_duration(wav_path: Path) -> float:
     return 0.0
 
 
+def analyze_wav_quality(wav_path: Path) -> dict:
+    """
+    Audio sifatini ilmiy baholash (Acoustic Quality Analysis):
+    - RMS energiya va signal kuchi;
+    - Peak amplitudasi va raqamli kesilish (Clipping / Saturation);
+    - Signal-shovqin nisbati (SNR smetasi, dB);
+    - Jimlik va nutq mavjudligi.
+    """
+    try:
+        with wave.open(str(wav_path), "rb") as wf:
+            framerate = wf.getframerate()
+            n_channels = wf.getnchannels()
+            sampwidth = wf.getsampwidth()
+            n_frames = wf.getnframes()
+            raw_bytes = wf.readframes(n_frames)
+
+        samples = array.array("h", raw_bytes)
+        total_len = len(samples)
+        if total_len == 0:
+            return {"is_valid": False, "reason": "empty"}
+
+        peak = max(abs(s) for s in samples)
+        rms = math.sqrt(sum(s * s for s in samples) / total_len)
+
+        is_clipped = peak >= 32700
+        is_silent = rms < 120
+
+        win_size = max(1, int(framerate * 0.02)) # 20ms
+        energies = []
+        for i in range(0, total_len, win_size):
+            chunk = samples[i:i + win_size]
+            if chunk:
+                energies.append(math.sqrt(sum(s * s for s in chunk) / len(chunk)))
+
+        if energies:
+            energies.sort()
+            noise_floor = max(1.0, sum(energies[:max(1, len(energies) // 10)]) / max(1, len(energies) // 10))
+            speech_signal = sum(energies[-max(1, len(energies) // 5):]) / max(1, len(energies) // 5)
+            snr_db = round(20 * math.log10(max(1.0, speech_signal / noise_floor)), 1)
+        else:
+            snr_db = 0.0
+
+        duration = round(n_frames / float(framerate), 3) if framerate > 0 else 0.0
+        grade = "A" if (snr_db >= 20 and not is_clipped and not is_silent) else ("B" if (snr_db >= 12 and not is_clipped) else "C")
+
+        return {
+            "is_valid": True,
+            "duration": duration,
+            "framerate": framerate,
+            "peak_amplitude": peak,
+            "rms_energy": round(rms, 1),
+            "is_clipped": is_clipped,
+            "is_silent": is_silent,
+            "snr_db": snr_db,
+            "quality_grade": grade
+        }
+    except Exception as e:
+        logger.warning(f"Audio sifat tahlilida xatolik: {e}")
+        return {"is_valid": False, "reason": str(e)}
+
+
 def center_and_pad_to_1sec(input_wav: Path, output_wav: Path = None, target_samples: int = 16000) -> bool:
     """
     Google Speech Commands standarti:
     Audio uzunligini roppa-rosa 1.0 soniya (16000 sample, 16-bit mono) qiladi.
     Nutq qismini (Voice Activity) aniqlab, buyruqni audio markaziga joylashtiradi,
     oldi va ortida tabiiy jimlik (silence padding) qoldiradi.
+    Chegara qismlarida spektral chertish (click) bo'lmasligi uchun 5ms yumshoq fading qo'llanadi.
     """
     if output_wav is None:
         output_wav = input_wav
@@ -81,6 +143,13 @@ def center_and_pad_to_1sec(input_wav: Path, output_wav: Path = None, target_samp
             dst_start = src_start - desired_start
             dst_end = dst_start + (src_end - src_start)
             out_samples[dst_start:dst_end] = samples[src_start:src_end]
+
+            # 5ms (80 sample) yumshoq fading (klik va spektral xatolarni bartaraf etish)
+            fade_len = min(80, (dst_end - dst_start) // 4)
+            for fi in range(fade_len):
+                factor = 0.5 * (1 - math.cos(math.pi * fi / fade_len))
+                out_samples[dst_start + fi] = int(out_samples[dst_start + fi] * factor)
+                out_samples[dst_end - 1 - fi] = int(out_samples[dst_end - 1 - fi] * factor)
 
         with wave.open(str(output_wav), "wb") as out_wf:
             out_wf.setnchannels(1)

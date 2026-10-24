@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from config import AUDIOS_DIR, SESSION_BATCH_SIZE
-from audio_converter import convert_ogg_to_wav, get_exact_wav_duration
+from audio_converter import convert_ogg_to_wav, get_exact_wav_duration, analyze_wav_quality
 from database import (
     get_or_create_user,
     get_speaker,
@@ -274,6 +274,22 @@ async def process_voice_message(message: Message, state: FSMContext, bot: Bot):
         remove_ogg=True,
         make_1sec_centered=is_command
     )
+
+    # Ilmiy sifat tahlili (jimlik va signal mavjudligini tekshirish)
+    quality_info = analyze_wav_quality(wav_file_path) if converted else {}
+    if quality_info.get("is_silent"):
+        try:
+            if wav_file_path.exists():
+                wav_file_path.unlink()
+        except Exception:
+            pass
+        await message.answer(
+            "⚠️ <b>Ovoz juda past yoki deyarli jimlik yozilgan!</b>\n\n"
+            "Dataset sifatli bo'lishi uchun, iltimos mikrofonga yaqinroq kelib, baland va aniq ovozda qaytadan o'qing:",
+            parse_mode="HTML"
+        )
+        return
+
     final_name = wav_file_name if converted else f"temp_{voice.file_id[-8:]}.ogg"
     final_file_path = wav_file_path if converted else temp_ogg_path
     actual_file_size = final_file_path.stat().st_size if final_file_path.exists() else (voice.file_size or 0)

@@ -3,6 +3,7 @@ import io
 import csv
 import json
 import zipfile
+import html
 from pathlib import Path
 from datetime import datetime
 from aiogram import Router, F, Bot
@@ -11,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from config import BASE_DIR, AUDIOS_DIR
-from audio_converter import center_and_pad_to_1sec
+from audio_converter import center_and_pad_to_1sec, analyze_wav_quality
 from database import (
     is_admin,
     get_overall_stats,
@@ -26,7 +27,10 @@ from database import (
     get_export_dataset_rows,
     get_speakers_by_filter,
     get_speaker,
-    get_speech_commands_export_data
+    get_speech_commands_export_data,
+    get_scientific_quality_audit,
+    get_flagged_recordings_for_admin,
+    add_validation
 )
 from keyboards.inline import (
     get_admin_inline_keyboard,
@@ -34,7 +38,8 @@ from keyboards.inline import (
     get_admin_users_menu_keyboard,
     get_user_role_toggle_keyboard,
     get_speaker_card_keyboard,
-    get_category_selection_for_upload
+    get_category_selection_for_upload,
+    get_flagged_review_keyboard
 )
 
 router = Router()
@@ -50,19 +55,29 @@ class AdminSG(StatesGroup):
 
 @router.message(F.text == "⚙️ Admin Panel")
 @router.message(Command("admin"))
-async def show_admin_panel(message: Message):
+async def show_admin_panel(message: Message, state: FSMContext = None):
+    if state:
+        await state.clear()
+
     if not await is_admin(message.from_user.id):
-        await message.answer("⛔️ Kechirasiz, ushbu bo'lim faqat bot administratorlari (ustoz) uchun!")
+        await message.answer(
+            "⛔️ <b>Ruxsat cheklangan!</b>\n\n"
+            "Ushbu bo'lim faqat bot administratorlari (ustoz va mas'ullar) uchun mo'ljallangan.\n\n"
+            f"👤 Sizning Telegram ID: <code>{message.from_user.id}</code>\n"
+            "Agar siz guruh koordinatori yoki ustoz bo'lsangiz, ID raqamingizni bosh adminga taqdim eting.",
+            parse_mode="HTML"
+        )
         return
 
     text = (
         "⚙️ <b>Ustoz & Administrator Boshqaruv Markazi</b>\n\n"
-        "Quyidagi boshqaruv bo'limlaridan birini tanlang:\n\n"
-        "• <b>📊 Jonli Statistika:</b> Jami userlar, jinslar/yoshlar nisbati, audio soatlari;\n"
-        "• <b>📦 Datasetni ZIP Yuklash:</b> Umumiy yoki to'plam/spiker bo'yicha alohida yuklash;\n"
-        "• <b>👥 Foydalanuvchilar & Guruhlar:</b> Jins, yosh bo'yicha filtrlash, qidiruv va datasetlarini yuklash;\n"
-        "• <b>➕ Yangi To'plam Yaratish:</b> Yangi mavzu ochish va ichiga so'z/matnlar kiritish;\n"
-        "• <b>📝 Matnlar Qo'shish:</b> Mavjud to'plamlarga qo'shimcha jumlalar kiritish."
+        "Quyidagi boshqaruv va ilmiy tahlil bo'limlaridan birini tanlang:\n\n"
+        "• <b>📊 Jonli Statistika:</b> Jami foydalanuvchilar, jins/yosh nisbati, audio soatlari;\n"
+        "• <b>🔬 Ilmiy Sifat Tahlili:</b> Inter-annotator kelishuv, SNR, demografik muvozanat;\n"
+        "• <b>⚠️ Shubhali Audiolar:</b> Noto'g'ri/sifatsiz deb ovoz berilgan yozuvlarni nazorat qilish;\n"
+        "• <b>📦 Datasetni ZIP Yuklash:</b> Google Speech Commands (1.0s) yoki Hugging Face formati;\n"
+        "• <b>👥 Foydalanuvchilar & Guruhlar:</b> Demografik guruhlar, qidiruv va filtrlash;\n"
+        "• <b>➕ Yangi To'plam / Matnlar:</b> Mavzu ochish va jumlalar kiritish."
     )
     await message.answer(text, parse_mode="HTML", reply_markup=get_admin_inline_keyboard())
 
@@ -127,6 +142,141 @@ async def show_admin_stats(callback: CallbackQuery):
     await callback.answer()
 
 
+# ==================== ILMIY SIFAT TAHLILI (SCIENTIFIC QUALITY AUDIT) ====================
+
+@router.callback_query(F.data == "admin_scientific_audit")
+async def show_scientific_audit(callback: CallbackQuery):
+    if not await is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    audit = await get_scientific_quality_audit()
+
+    male_recs = audit["gender_stats"].get("male", {}).get("recordings", 0)
+    female_recs = audit["gender_stats"].get("female", {}).get("recordings", 0)
+    tot_rec = max(1, audit["total_recordings"])
+    m_pct = round(male_recs / tot_rec * 100, 1)
+    f_pct = round(female_recs / tot_rec * 100, 1)
+
+    age_str = ""
+    for grp, dt in audit["age_stats"].items():
+        if grp:
+            age_str += f"  • {grp}: {dt['speakers']} spiker ({dt['recordings']} audio)\n"
+    if not age_str:
+        age_str = "  • Hozircha ma'lumot yetarli emas\n"
+
+    v_pct = round(audit["verified_count"] / tot_rec * 100, 1)
+    acc_pct = round(audit["accepted_count"] / tot_rec * 100, 1)
+    rej_pct = round(audit["rejected_count"] / tot_rec * 100, 1)
+    unrev_pct = round(audit["unreviewed_count"] / tot_rec * 100, 1)
+
+    text = (
+        "🔬 <b>ILMIY DATASET SIFAT VA METRIKALAR TAHLILI</b>\n\n"
+        "⚡️ <b>Akustik va Audio Ko'rsatkichlari:</b>\n"
+        f"  • Format: <b>16 kHz, 16-bit PCM, Mono .WAV</b>\n"
+        f"  • Jami audio vaqti: <b>{audit['total_seconds']} sek (~{audit['total_hours']} soat)</b>\n"
+        f"  • O'rtacha buyruq davomiyligi: <b>{audit['avg_duration']} soniya</b>\n"
+        f"  • Faol spikerlar soni: <b>{audit['active_speakers']} nafar</b>\n\n"
+        "👥 <b>Demografik Muvozanat (Demographic Balance):</b>\n"
+        f"  • Jinslar nisbati: 👨 <b>{m_pct}% Erkak</b> | 👩 <b>{f_pct}% Ayol</b>\n"
+        f"  • Yosh guruhlari taqsimoti:\n{age_str}\n"
+        "🎯 <b>Crowdsourced Validatsiya & Kelishuv Indeksi:</b>\n"
+        f"  • Tekshiruvchilar soni: <b>{audit['total_validators']} kishi</b>\n"
+        f"  • Jami berilgan baholar: <b>{audit['total_votes']} ta</b>\n"
+        f"  • <b>Inter-Annotator Consensus:</b> <code>{audit['consensus_rate']}%</code> (Ilmiy kelishuv)\n\n"
+        "📊 <b>Dataset Sifat Holati (Quality Breakdown):</b>\n"
+        f"  • 🌟 <b>Verified (2+ tasdiqlangan):</b> {audit['verified_count']} ta ({v_pct}%)\n"
+        f"  • ✅ <b>Accepted (1 tasdiqlangan):</b> {audit['accepted_count']} ta ({acc_pct}%)\n"
+        f"  • ⚠️ <b>Unreviewed (tekshirilmagan):</b> {audit['unreviewed_count']} ta ({unrev_pct}%)\n"
+        f"  • ❌ <b>Rejected (shubhali/rad etilgan):</b> {audit['rejected_count']} ta ({rej_pct}%)\n\n"
+        "<i>Tizim AI/ML modellarini (Speech-to-Text / Keyword Spotting) o'qitish standartlariga to'liq mos keladi.</i>"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚠️ Shubhali audiolarni ko'rish", callback_data="admin_review_flagged")],
+        [InlineKeyboardButton(text="⬅️ Admin Menyu", callback_data="admin_menu")]
+    ])
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+
+# ==================== SHUBHALI AUDIOLAR NAZORATI ====================
+
+@router.callback_query(F.data == "admin_review_flagged")
+async def show_review_flagged_audio(callback: CallbackQuery, bot: Bot):
+    if not await is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    flagged = await get_flagged_recordings_for_admin(limit=1)
+    if not flagged:
+        await callback.message.edit_text(
+            "✅ <b>Shubhali yoki sifatsiz deb belgilangan audilar yo'q!</b>\n\n"
+            "Barcha yozilgan ovozlar to'g'ri o'qilgan yoki tekshiruvchilarda e'tiroz tug'dirmagan.",
+            parse_mode="HTML",
+            reply_markup=get_admin_inline_keyboard()
+        )
+        await callback.answer("Shubhali ovozlar yo'q")
+        return
+
+    rec = flagged[0]
+    rec_id = rec["recording_id"]
+    caption = (
+        "⚠️ <b>Ustoz Nazorati: Shubhali Audio Ekspertizasi</b>\n\n"
+        f"📖 <b>Kutilgan matn:</b> « {html.escape(rec['prompt_text'])} »\n"
+        f"🏷 <b>Spiker ID:</b> <code>spk{rec['speaker_id']:03d}</code> ({html.escape(rec.get('speaker_name', ''))})\n"
+        f"📂 <b>To'plam:</b> {html.escape(rec.get('category_title', ''))}\n"
+        f"⏱ <b>Davomiyligi:</b> {rec['duration']} soniya\n\n"
+        "📊 <b>Tekshiruvchilar baholari:</b>\n"
+        f"  • ✅ To'g'ri: {rec['val_correct']} ta\n"
+        f"  • ❌ Noto'g'ri: {rec['val_incorrect']} ta\n"
+        f"  • ⚠️ Sifatsiz: {rec['val_low_quality']} ta\n\n"
+        "<i>Ushbu ovoz haqiqatdan ham matnga to'g'ri keladimi? Yakuniy qarorni tanlang:</i>"
+    )
+
+    kb = get_flagged_review_keyboard(rec_id)
+    file_id = rec.get("file_id")
+    file_path = BASE_DIR / rec["file_path"]
+
+    sent = False
+    if file_id:
+        try:
+            await bot.send_voice(chat_id=callback.from_user.id, voice=file_id, caption=caption, parse_mode="HTML", reply_markup=kb)
+            sent = True
+        except Exception:
+            sent = False
+
+    if not sent and file_path.exists():
+        await bot.send_voice(chat_id=callback.from_user.id, voice=FSInputFile(file_path), caption=caption, parse_mode="HTML", reply_markup=kb)
+
+    await callback.answer("Shubhali audio yuklandi")
+
+
+@router.callback_query(F.data.startswith("flag_resolve:"))
+async def handle_flag_resolve(callback: CallbackQuery, bot: Bot):
+    if not await is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    parts = callback.data.split(":")
+    rec_id = int(parts[1])
+    decision = parts[2]
+
+    if decision == "approve":
+        await add_validation(rec_id, callback.from_user.id, "correct")
+        await callback.answer("✅ Ustoz tomonidan tasdiqlandi!")
+    else:
+        await add_validation(rec_id, callback.from_user.id, "incorrect")
+        await callback.answer("🗑 Ovoz sifatsiz deb topildi va rad etildi!")
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    await show_review_flagged_audio(callback, bot)
+
+
 # ==================== DATASET ZIP YUKLASH (MENYU VA FILTRLAR) ====================
 
 @router.callback_query(F.data == "admin_export_menu")
@@ -164,7 +314,12 @@ async def handle_export_speech_commands_zip(callback: CallbackQuery, bot: Bot):
     speakers = data["speakers"]
 
     if not items:
-        await status_msg.edit_text("⚠️ Hozircha datasetda audio yozuvlar mavjud emas.")
+        await status_msg.edit_text(
+            "ℹ️ <b>Google Speech Commands («uz_robot_cmd») bo'yicha audio yozuvlar topilmadi.</b>\n\n"
+            "Ushbu to'plam faqat 20 ta standart robot buyruqlari (`🗣 Qisqa Buyruqlar`) bo'yicha to'liq yakunlangan sessiyalardan olinadi.\n\n"
+            "Mavjud umumiy ASR (kitobiy) datasetini yuklab olish uchun <b>«📦 Barcha Datasetlar (Umumiy ZIP)»</b> tugmasidan foydalaning.",
+            parse_mode="HTML"
+        )
         return
 
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -333,17 +488,24 @@ async def generate_and_send_zip(callback: CallbackQuery, bot: Bot, cat_id=None, 
         "prompt_text",
         "category_code",
         "category_title",
-        "speaker_name",
+        "speaker_id",
         "speaker_gender",
         "speaker_age",
-        "telegram_user_id",
+        "speaker_age_group",
+        "speaker_region",
+        "speaker_device",
         "session_id",
         "duration_seconds",
         "file_size_bytes",
+        "quality_status",
+        "correct_votes",
+        "incorrect_votes",
+        "low_quality_votes",
         "created_at"
     ])
 
     jsonl_lines = []
+    total_duration_sec = 0.0
 
     with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for r in rows:
@@ -354,19 +516,29 @@ async def generate_and_send_zip(callback: CallbackQuery, bot: Bot, cat_id=None, 
             if full_audio_path.exists():
                 zipf.write(full_audio_path, arcname=arc_name)
 
+            dur = float(r.get("duration", 0.0))
+            total_duration_sec += dur
+
+            spk_tag = f"spk{r['speaker_id']:03d}"
             writer.writerow([
                 r["recording_id"],
                 arc_name,
                 r["prompt_text"],
                 r["category_code"],
                 r["category_title"],
-                r["speaker_name"],
+                spk_tag,
                 r["speaker_gender"],
                 r["speaker_age"],
-                r["telegram_user_id"],
+                r.get("speaker_age_group", ""),
+                r.get("speaker_region", ""),
+                r.get("speaker_device", ""),
                 r["session_id"],
-                r["duration"],
+                dur,
                 r["file_size"],
+                r.get("quality_status", "unreviewed"),
+                r.get("val_correct", 0),
+                r.get("val_incorrect", 0),
+                r.get("val_low_quality", 0),
                 r["created_at"]
             ])
 
@@ -376,16 +548,46 @@ async def generate_and_send_zip(callback: CallbackQuery, bot: Bot, cat_id=None, 
                 "text": r["prompt_text"],
                 "category": r["category_code"],
                 "speaker": {
-                    "name": r["speaker_name"],
+                    "id": spk_tag,
                     "gender": r["speaker_gender"],
-                    "age": r["speaker_age"]
+                    "age": r["speaker_age"],
+                    "age_group": r.get("speaker_age_group", ""),
+                    "region": r.get("speaker_region", ""),
+                    "device": r.get("speaker_device", "")
                 },
-                "duration": r["duration"],
+                "duration": dur,
+                "quality": {
+                    "status": r.get("quality_status", "unreviewed"),
+                    "correct_votes": r.get("val_correct", 0),
+                    "incorrect_votes": r.get("val_incorrect", 0),
+                    "low_quality_votes": r.get("val_low_quality", 0)
+                },
                 "created_at": r["created_at"]
             }, ensure_ascii=False))
 
         zipf.writestr("metadata.csv", ("\ufeff" + csv_output.getvalue()).encode("utf-8"))
         zipf.writestr("metadata.jsonl", "\n".join(jsonl_lines).encode("utf-8"))
+
+        summary_meta = {
+            "dataset_name": f"Uzbek Speech Corpus ({label})",
+            "audio_format": "WAV 16kHz 16-bit PCM Mono",
+            "total_recordings": len(rows),
+            "total_duration_seconds": round(total_duration_sec, 2),
+            "total_duration_minutes": round(total_duration_sec / 60, 2),
+            "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        zipf.writestr("dataset_summary.json", json.dumps(summary_meta, indent=2, ensure_ascii=False).encode("utf-8"))
+
+        readme_doc = (
+            f"# O'zbek Tili Ovozli Dataseti ({label})\n\n"
+            "## Texnik va Akustik Parametrlar:\n"
+            "- Audio formati: 16 kHz, 16-bit PCM, Mono WAV\n"
+            f"- Jami yozuvlar soni: {len(rows)} ta\n"
+            f"- Umumiy audio davomiyligi: {round(total_duration_sec / 60, 2)} daqiqa\n"
+            "- Metama'lumotlar: `metadata.csv` va `metadata.jsonl` (Common Voice / Hugging Face formati)\n"
+            "- Validatsiya: Crowdsourced o'zaro tekshiruv va sifat ko'rsatkichlari kiritilgan\n"
+        )
+        zipf.writestr("README.md", readme_doc.encode("utf-8"))
 
     try:
         doc = FSInputFile(temp_zip_path, filename=zip_filename)
@@ -436,9 +638,10 @@ async def list_all_users_cb(callback: CallbackQuery):
 
     for u in users:
         role_badge = "👑 Admin" if u["role"] in ("admin", "superadmin") else "👤 User"
-        uname = f"@{u['username']}" if u["username"] else "Username yo'q"
+        uname = f"@{html.escape(u['username'])}" if u["username"] else "Username yo'q"
+        fname = html.escape(u.get('first_name') or '')
         text += (
-            f"• <b>{u['first_name']}</b> ({uname})\n"
+            f"• <b>{fname}</b> ({uname})\n"
             f"  ID: <code>{u['user_id']}</code> | Roli: <b>{role_badge}</b>\n"
             f"  Spikerlar: {u['speakers_count']} ta | Yakunlangan: {u['completed_sessions']} ta\n\n"
         )
@@ -471,7 +674,7 @@ async def handle_speaker_filters(callback: CallbackQuery):
         label = "👩 Ayol Spikerlar"
     elif filter_type == "age_teen":
         max_age = 17
-        label = "👶 O'smirlar (<18 yosh)"
+        label = "👶 O'smirlar (18 yoshgacha)"
     elif filter_type == "age_youth":
         min_age = 18
         max_age = 25
@@ -498,9 +701,10 @@ async def handle_speaker_filters(callback: CallbackQuery):
 
     for sp in speakers[:15]:
         g_icon = "👨" if sp["gender"] == "male" else "👩"
-        owner_uname = f"@{sp['username']}" if sp["username"] else sp["user_first_name"]
+        owner_uname = f"@{html.escape(sp['username'])}" if sp["username"] else html.escape(sp.get('user_first_name') or '')
+        spk_name = html.escape(sp.get('name') or '')
         text += (
-            f"• {g_icon} <b>{sp['name']}</b> ({sp['age']} yosh)\n"
+            f"• {g_icon} <b>{spk_name}</b> ({sp['age']} yosh)\n"
             f"  Telegram: {owner_uname} (ID: <code>{sp['user_id']}</code>)\n"
             f"  Tasdiqlangan ovozlar: <b>{sp['recordings_count']} ta</b> | Sessiyalar: <b>{sp['completed_sessions']} ta</b>\n\n"
         )
@@ -526,11 +730,12 @@ async def view_user_detail(callback: CallbackQuery):
         return
 
     role_badge = "👑 Administrator" if u["role"] in ("admin", "superadmin") else "👤 Oddiy foydalanuvchi"
-    uname = f"@{u['username']}" if u["username"] else "Username yo'q"
+    uname = f"@{html.escape(u['username'])}" if u["username"] else "Username yo'q"
+    fname = html.escape(u.get('first_name') or '')
 
     text = (
         "👤 <b>Foydalanuvchi Tafsilotlari:</b>\n\n"
-        f"• <b>Ismi:</b> {u['first_name']}\n"
+        f"• <b>Ismi:</b> {fname}\n"
         f"• <b>Username:</b> {uname}\n"
         f"• <b>Telegram ID:</b> <code>{u['user_id']}</code>\n"
         f"• <b>Hozirgi roli:</b> {role_badge}\n"
@@ -564,7 +769,7 @@ async def process_user_search(message: Message, state: FSMContext):
 
     if not users:
         await message.answer(
-            f"🔍 <code>{query}</code> bo'yicha foydalanuvchi topilmadi.\n"
+            f"🔍 <code>{html.escape(query)}</code> bo'yicha foydalanuvchi topilmadi.\n"
             "Foydalanuvchi avval botga /start bosgan bo'lishi kerak.\n\n"
             "Qaytadan ID yoki @username kiriting yoki /admin buyrug'ini bering:"
         )
@@ -574,11 +779,12 @@ async def process_user_search(message: Message, state: FSMContext):
     await state.clear()
 
     role_badge = "👑 Administrator" if u["role"] in ("admin", "superadmin") else "👤 Oddiy foydalanuvchi"
-    uname = f"@{u['username']}" if u["username"] else "Username yo'q"
+    uname = f"@{html.escape(u['username'])}" if u["username"] else "Username yo'q"
+    fname = html.escape(u.get('first_name') or '')
 
     text = (
         "👤 <b>Topilgan foydalanuvchi:</b>\n\n"
-        f"• <b>Ismi:</b> {u['first_name']}\n"
+        f"• <b>Ismi:</b> {fname}\n"
         f"• <b>Username:</b> {uname}\n"
         f"• <b>Telegram ID:</b> <code>{u['user_id']}</code>\n"
         f"• <b>Hozirgi roli:</b> {role_badge}\n"

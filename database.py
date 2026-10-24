@@ -1,7 +1,7 @@
 import aiosqlite
 from contextlib import asynccontextmanager
 from datetime import datetime
-from config import DB_PATH
+from config import DB_PATH, ADMIN_IDS
 from default_prompts import DEFAULT_CATEGORIES, DEFAULT_PROMPTS
 
 
@@ -151,6 +151,10 @@ async def init_db():
 
         # Bot qayta ishga tushganda chala qolgan eski sessiyalarni bekor qilish
         await db.execute("UPDATE sessions SET status = 'cancelled' WHERE status = 'in_progress'")
+
+        # Adminlarni avtomatik bazada admin rolida tasdiqlash
+        for aid in ADMIN_IDS:
+            await db.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (aid,))
         await db.commit()
 
 
@@ -161,10 +165,10 @@ async def get_or_create_user(user_id: int, username: str = None, first_name: str
         cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
         user = await cursor.fetchone()
         if not user:
-            # Agar bazada birinchi foydalanuvchi bo'lsa, uni avtomatik superadmin qilamiz!
+            # Agar bazada birinchi foydalanuvchi bo'lsa yoki ADMIN_IDS da bo'lsa, avtomatik admin qilamiz!
             count_cur = await db.execute("SELECT COUNT(*) as cnt FROM users")
             total_users = (await count_cur.fetchone())["cnt"]
-            initial_role = "admin" if total_users == 0 else "user"
+            initial_role = "admin" if (total_users == 0 or user_id in ADMIN_IDS) else "user"
 
             # Default category neutral ni olamiz
             cat_cur = await db.execute("SELECT id FROM categories WHERE code = 'neutral' LIMIT 1")
@@ -180,6 +184,12 @@ async def get_or_create_user(user_id: int, username: str = None, first_name: str
             cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
             user = await cursor.fetchone()
         else:
+            if user_id in ADMIN_IDS and user["role"] not in ("admin", "superadmin"):
+                await db.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (user_id,))
+                await db.commit()
+                cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+                user = await cursor.fetchone()
+
             # Username yoki first_name o'zgargan bo'lsa yangilash
             if user["username"] != username or user["first_name"] != first_name:
                 await db.execute(
@@ -198,6 +208,8 @@ async def get_user(user_id: int):
 
 
 async def is_admin(user_id: int) -> bool:
+    if user_id in ADMIN_IDS:
+        return True
     user = await get_user(user_id)
     return user is not None and user.get("role") in ("admin", "superadmin")
 
@@ -617,6 +629,7 @@ async def get_export_dataset_rows(category_id: int = None, user_id: int = None, 
     """
     Faqat status='completed' bo'lgan sessiyalardagi ovozlarni qaytaradi.
     Filtrlar: category_id, user_id, speaker_id bo'yicha moslashuvchan.
+    Ilmiy metama'lumotlar va validatsiya natijalari bilan to'liq boyitilgan.
     """
     query = """
         SELECT r.id as recording_id,
@@ -632,8 +645,14 @@ async def get_export_dataset_rows(category_id: int = None, user_id: int = None, 
                sp.name as speaker_name,
                sp.gender as speaker_gender,
                sp.age as speaker_age,
+               sp.region as speaker_region,
+               sp.device as speaker_device,
+               sp.age_group as speaker_age_group,
                s.user_id as telegram_user_id,
-               s.id as session_id
+               s.id as session_id,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'correct'), 0) as val_correct,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'incorrect'), 0) as val_incorrect,
+               COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'low_quality'), 0) as val_low_quality
         FROM recordings r
         JOIN sessions s ON r.session_id = s.id
         JOIN prompts p ON r.prompt_id = p.id
@@ -656,6 +675,163 @@ async def get_export_dataset_rows(category_id: int = None, user_id: int = None, 
 
     async with get_db() as db:
         cursor = await db.execute(query, tuple(params))
+        rows = await cursor.fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            val_c = d["val_correct"]
+            val_bad = d["val_incorrect"] + d["val_low_quality"]
+            if val_bad > val_c and val_bad >= 2:
+                d["quality_status"] = "rejected"
+            elif val_c >= 2:
+                d["quality_status"] = "verified"
+            elif val_c >= 1:
+                d["quality_status"] = "accepted"
+            else:
+                d["quality_status"] = "unreviewed"
+            result.append(d)
+        return result
+
+
+async def get_scientific_quality_audit() -> dict:
+    """
+    Tizimning ilmiy va sifat ko'rsatkichlari bo'yicha to'liq tahlil:
+    1. Jami to'plangan audio soati va o'rtacha davomiylik;
+    2. Jinslar va yosh guruhlari bo'yicha demografik muvozanat;
+    3. Inter-annotator agreement (Tekshiruvchilar o'zaro kelishuv indeksi);
+    4. Sifat sinflari (Verified, Accepted, Rejected, Unreviewed);
+    5. Hududlar va qurilmalar bo'yicha qamrov.
+    """
+    async with get_db() as db:
+        cur_aud = await db.execute("""
+            SELECT 
+                COUNT(r.id) as total_recordings,
+                COALESCE(SUM(r.duration), 0) as total_seconds,
+                COALESCE(AVG(r.duration), 0) as avg_duration,
+                COUNT(DISTINCT r.speaker_id) as active_speakers,
+                COUNT(DISTINCT s.id) as completed_sessions
+            FROM recordings r
+            JOIN sessions s ON r.session_id = s.id
+            WHERE s.status = 'completed'
+        """)
+        row_aud = dict(await cur_aud.fetchone())
+
+        cur_val = await db.execute("""
+            SELECT 
+                COUNT(*) as total_votes,
+                COUNT(DISTINCT recording_id) as audited_recordings,
+                COUNT(DISTINCT validator_user_id) as total_validators,
+                COALESCE(SUM(CASE WHEN status = 'correct' THEN 1 ELSE 0 END), 0) as correct_cnt,
+                COALESCE(SUM(CASE WHEN status = 'incorrect' THEN 1 ELSE 0 END), 0) as incorrect_cnt,
+                COALESCE(SUM(CASE WHEN status = 'low_quality' THEN 1 ELSE 0 END), 0) as low_quality_cnt
+            FROM validations
+        """)
+        row_val = dict(await cur_val.fetchone())
+
+        tot_votes = row_val["total_votes"]
+        consensus_rate = round((row_val["correct_cnt"] / tot_votes * 100), 1) if tot_votes > 0 else 100.0
+
+        cur_recs = await db.execute("""
+            SELECT r.id,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'correct'), 0) as c,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'incorrect'), 0) as inc,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'low_quality'), 0) as lq
+            FROM recordings r
+            JOIN sessions s ON r.session_id = s.id
+            WHERE s.status = 'completed'
+        """)
+        rec_rows = await cur_recs.fetchall()
+        verified_cnt = 0
+        accepted_cnt = 0
+        rejected_cnt = 0
+        unreviewed_cnt = 0
+        for r in rec_rows:
+            c = r["c"]
+            bad = r["inc"] + r["lq"]
+            if bad > c and bad >= 2:
+                rejected_cnt += 1
+            elif c >= 2:
+                verified_cnt += 1
+            elif c >= 1:
+                accepted_cnt += 1
+            else:
+                unreviewed_cnt += 1
+
+        cur_gender = await db.execute("""
+            SELECT sp.gender, COUNT(DISTINCT sp.id) as spk_cnt, COUNT(r.id) as rec_cnt
+            FROM speakers sp
+            LEFT JOIN recordings r ON sp.id = r.speaker_id
+            GROUP BY sp.gender
+        """)
+        gender_stats = {r["gender"]: {"speakers": r["spk_cnt"], "recordings": r["rec_cnt"]} for r in await cur_gender.fetchall()}
+
+        cur_age = await db.execute("""
+            SELECT sp.age_group, COUNT(DISTINCT sp.id) as spk_cnt, COUNT(r.id) as rec_cnt
+            FROM speakers sp
+            LEFT JOIN recordings r ON sp.id = r.speaker_id
+            GROUP BY sp.age_group
+        """)
+        age_stats = {r["age_group"]: {"speakers": r["spk_cnt"], "recordings": r["rec_cnt"]} for r in await cur_age.fetchall()}
+
+        cur_region = await db.execute("""
+            SELECT sp.region, COUNT(DISTINCT sp.id) as spk_cnt
+            FROM speakers sp
+            GROUP BY sp.region
+            ORDER BY spk_cnt DESC
+        """)
+        region_stats = {r["region"]: r["spk_cnt"] for r in await cur_region.fetchall()}
+
+        return {
+            "total_recordings": row_aud["total_recordings"],
+            "total_seconds": round(row_aud["total_seconds"], 2),
+            "total_hours": round(row_aud["total_seconds"] / 3600, 3),
+            "avg_duration": round(row_aud["avg_duration"], 2),
+            "active_speakers": row_aud["active_speakers"],
+            "completed_sessions": row_aud["completed_sessions"],
+            "total_validators": row_val["total_validators"],
+            "total_votes": tot_votes,
+            "audited_recordings": row_val["audited_recordings"],
+            "consensus_rate": consensus_rate,
+            "verified_count": verified_cnt,
+            "accepted_count": accepted_cnt,
+            "rejected_count": rejected_cnt,
+            "unreviewed_count": unreviewed_cnt,
+            "gender_stats": gender_stats,
+            "age_stats": age_stats,
+            "region_stats": region_stats
+        }
+
+
+async def get_flagged_recordings_for_admin(limit: int = 10):
+    """Admin/Ustoz tekshiruvi uchun shubhali yoki noto'g'ri deb baholangan audiolarni olib beradi"""
+    async with get_db() as db:
+        query = """
+            SELECT r.id as recording_id,
+                   r.file_id,
+                   r.file_path,
+                   r.duration,
+                   p.text as prompt_text,
+                   c.title as category_title,
+                   sp.id as speaker_id,
+                   sp.name as speaker_name,
+                   sp.gender,
+                   sp.age,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'correct'), 0) as val_correct,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'incorrect'), 0) as val_incorrect,
+                   COALESCE((SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status = 'low_quality'), 0) as val_low_quality
+            FROM recordings r
+            JOIN sessions s ON r.session_id = s.id
+            JOIN prompts p ON r.prompt_id = p.id
+            JOIN categories c ON s.category_id = c.id
+            JOIN speakers sp ON r.speaker_id = sp.id
+            WHERE s.status = 'completed'
+              AND (
+                  (SELECT COUNT(*) FROM validations v WHERE v.recording_id = r.id AND v.status IN ('incorrect', 'low_quality')) > 0
+              )
+            ORDER BY (val_incorrect + val_low_quality) DESC, r.id DESC
+            LIMIT ?
+        """
+        cursor = await db.execute(query, (limit,))
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
 

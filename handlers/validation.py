@@ -1,4 +1,5 @@
 import logging
+import html
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -57,11 +58,11 @@ async def send_validation_prompt(chat_id: int, user_id: int, bot: Bot, state: FS
         "🎧 <b>Ovozni tinglang va baholang:</b>\n\n"
         "📖 <b>O'qilishi kerak bo'lgan matn:</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👉 <b>« {rec['prompt_text']} »</b>\n"
+        f"👉 <b>« {html.escape(rec['prompt_text'])} »</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n"
         f"👤 <b>Spiker haqida:</b> {g_icon} {g_label}, {age_info}\n"
-        f"📍 <b>Hudud:</b> {region} | 📱 {device}\n\n"
+        f"📍 <b>Hudud:</b> {html.escape(str(region))} | 📱 {html.escape(str(device))}\n\n"
         "👇 <i>Ovoz yuqoridagi matnga to'liq mos va sifatli aytilganmi? Tanlang:</i>"
     )
 

@@ -10,5 +10,9 @@ SESSION_BATCH_SIZE = int(os.getenv("SESSION_BATCH_SIZE", "20"))
 DB_PATH = BASE_DIR / os.getenv("DB_PATH", "dataset.db")
 AUDIOS_DIR = BASE_DIR / "audios"
 
+# Administratorlar ro'yxati (Ustoz va mas'ullar)
+raw_admins = os.getenv("ADMIN_IDS", "1334437173,6548621409,1652007814,1216505053,5022324257")
+ADMIN_IDS = [int(x.strip()) for x in raw_admins.split(",") if x.strip().isdigit()]
+
 # Audios papkasi mavjud bo'lishini ta'minlash
 AUDIOS_DIR.mkdir(parents=True, exist_ok=True)
