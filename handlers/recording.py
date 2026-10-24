@@ -367,13 +367,4 @@ async def process_voice_outside_session(message: Message):
     )
 
 
-@router.message()
-async def process_unhandled_message(message: Message):
-    admin_status = await is_admin(message.from_user.id)
-    kb = get_main_keyboard(is_admin=admin_status)
-    await message.answer(
-        "ℹ️ Buyruq tushunarsiz.\n\n"
-        "Kerakli bo'limni tanlash uchun quyidagi menyu tugmalaridan foydalaning:",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
+
