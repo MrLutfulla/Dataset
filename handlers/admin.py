@@ -224,7 +224,7 @@ async def show_review_flagged_audio(callback: CallbackQuery, bot: Bot):
     caption = (
         "⚠️ <b>Ustoz Nazorati: Shubhali Audio Ekspertizasi</b>\n\n"
         f"📖 <b>Kutilgan matn:</b> « {html.escape(rec['prompt_text'])} »\n"
-        f"🏷 <b>Spiker ID:</b> <code>spk{rec['speaker_id']:03d}</code> ({html.escape(rec.get('speaker_name', ''))})\n"
+        f"🏷 <b>Spiker ID:</b> <code>spk{rec['speaker_id']:03d}</code>\n"
         f"📂 <b>To'plam:</b> {html.escape(rec.get('category_title', ''))}\n"
         f"⏱ <b>Davomiyligi:</b> {rec['duration']} soniya\n\n"
         "📊 <b>Tekshiruvchilar baholari:</b>\n"

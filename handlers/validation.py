@@ -45,14 +45,8 @@ async def send_validation_prompt(chat_id: int, user_id: int, bot: Bot, state: FS
         await state.clear()
         return
 
-    # Anonimlashtirilgan ma'lumotlar (hech qanday ism yoki username ko'rsatilmaydi)
-    g_raw = (rec.get("speaker_gender") or "male").lower()
-    g_icon = "👨" if g_raw in ("male", "erkak") else "👩"
-    g_label = "Erkak" if g_raw in ("male", "erkak") else "Ayol"
+    # Faqat Diktor ID si ko'rsatiladi, qolgan barcha ma'lumotlar maxfiy (sir) saqlanadi
     spk_tag = f"spk{rec['speaker_id']:03d}"
-    age_info = rec.get("speaker_age_group") or f"{rec['speaker_age']} yosh"
-    region = rec.get("speaker_region") or "O'zbekiston"
-    device = rec.get("speaker_device") or "smartfon"
 
     caption = (
         "🎧 <b>Ovozni tinglang va baholang:</b>\n\n"
@@ -60,9 +54,7 @@ async def send_validation_prompt(chat_id: int, user_id: int, bot: Bot, state: FS
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👉 <b>« {html.escape(rec['prompt_text'])} »</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n"
-        f"👤 <b>Spiker haqida:</b> {g_icon} {g_label}, {age_info}\n"
-        f"📍 <b>Hudud:</b> {html.escape(str(region))} | 📱 {html.escape(str(device))}\n\n"
+        f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n\n"
         "👇 <i>Ovoz yuqoridagi matnga to'liq mos va sifatli aytilganmi? Tanlang:</i>"
     )
 
