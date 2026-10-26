@@ -61,14 +61,17 @@ async def main():
     # Routerni ulash
     dp.include_router(setup_routers())
 
-    # Telegram komandalar menyusini o'rnatish
-    await set_bot_commands(bot)
-
-    # Eski update larni tozalab, barqaror polling boshlash
+    # Eski update larni tozalab, barqaror polling boshlash (avtomatik qayta ulanish bilan)
     while True:
         try:
-            logger.info("Bot muvaffaqiyatli ishga tushdi! Polling boshlanmoqda...")
+            logger.info("Telegram bilan aloqa o'rnatilmoqda...")
+            try:
+                await set_bot_commands(bot)
+            except Exception as cmd_err:
+                logger.warning(f"Komandalar menyusini o'rnatishda vaqtincha xatolik: {cmd_err}")
+
             await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Bot muvaffaqiyatli ishga tushdi! Polling boshlanmoqda...")
             await dp.start_polling(
                 bot,
                 polling_timeout=20,
@@ -79,7 +82,7 @@ async def main():
             logger.info("Bot to'xtatildi.")
             break
         except Exception as e:
-            logger.error(f"Polling uzilishi yuz berdi: {e}. 5 soniyadan so'ng qayta ulanadi...")
+            logger.error(f"Tarmoq uzilishi yoki ulanish xatoligi: {e}. 5 soniyadan so'ng qayta ulanadi...")
             await asyncio.sleep(5)
 
 
