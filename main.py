@@ -53,14 +53,15 @@ async def set_bot_commands(bot: Bot):
     try:
         desc = (
             "🎙 O'zbek tili Ovozli Dataset Yig'ish Tizimi\n\n"
-            "Ushbu bot sun'iy intellekt (Speech-to-Text) modellarini o'qitish uchun "
-            "toza va sifatli o'zbekcha ovozlar to'plamini yig'ishga mo'ljallangan.\n\n"
-            "📌 Bot imkoniyatlari:\n"
-            "• 🎙 20 ta qisqa robot buyruqlarini ovozli yozish\n"
-            "• 🎧 Boshqa ishtirokchilar ovozini tekshirish va baholash\n"
-            "• 👤 Har bir diktor uchun ilmiy parametrlar (jins, yosh, hudud)\n"
-            "• 🔒 Shaxsiy ma'lumotlar to'liq maxfiy saqlanadi\n\n"
-            "Boshlash uchun pastdagi «Boshlash» (Start) tugmasini bosing!"
+            "Sun'iy intellekt modellarini o'qitish uchun ovozlar platformasi.\n\n"
+            "📂 Dataset To'plamlari:\n"
+            "• 📖 Kitobiy / Neytral: ASR/STT uchun xolis o'qish\n"
+            "• 😊 Quvnoq / Xursand: Ko'tarinki kayfiyatdagi ovoz\n"
+            "• 😢 Yig'lamsirab / Mahzun: Hissiyotli g'amgin ovoz\n"
+            "• 😠 G'azab / Asabiy: Jiddiylik va g'azab ohangi\n"
+            "• 🗣 Buyruqlar: Smart-uy va robot yordamchilar\n\n"
+            "🎧 Boshqa ishtirokchilar ovozini tekshirish va baholash.\n\n"
+            "Boshlash uchun pastdagi «Boshlash» (Start) ni bosing!"
         )
         short_desc = "O'zbek tili sun'iy intellekt modellarini o'qitish uchun ovozli dataset yig'ish va xolis tekshirish boti."
         await bot.set_my_description(description=desc)
