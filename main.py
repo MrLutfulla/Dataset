@@ -4,9 +4,9 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import BotCommand, BotCommandScopeDefault
+from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, ADMIN_IDS
 from database import init_db
 from handlers import setup_routers
 
@@ -20,17 +20,34 @@ logger = logging.getLogger("VoiceDatasetBot")
 
 
 async def set_bot_commands(bot: Bot):
-    commands = [
+    # 1. Oddiy foydalanuvchilar menyusi (Admin va Ustoz buyruqlari umuman ko'rinmaydi)
+    user_commands = [
         BotCommand(command="start", description="🏠 Asosiy menyu"),
-        BotCommand(command="record", description="🎙 Ovoz yozish (to'plam tanlash)"),
+        BotCommand(command="record", description="🎙 Ovoz yozish"),
         BotCommand(command="validate", description="🎧 Ovoz tekshirish va baholash"),
-        BotCommand(command="speakers", description="👤 Spikerlarim (odam almashtirish/qo'shish)"),
+        BotCommand(command="speakers", description="👤 Spikerlarim"),
         BotCommand(command="collections", description="📂 Dataset to'plamlari"),
-        BotCommand(command="mystats", description="📊 Mening hissam va statistikam"),
+        BotCommand(command="mystats", description="📊 Mening hissam"),
+        BotCommand(command="help", description="ℹ️ Qo'llanma va yordam"),
+    ]
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+
+    # 2. Faqat administratorlar uchun maxsus menyu (Admin paneli faqat ularga ko'rinadi)
+    admin_commands = [
+        BotCommand(command="start", description="🏠 Asosiy menyu"),
+        BotCommand(command="record", description="🎙 Ovoz yozish"),
+        BotCommand(command="validate", description="🎧 Ovoz tekshirish va baholash"),
+        BotCommand(command="speakers", description="👤 Spikerlarim"),
+        BotCommand(command="collections", description="📂 Dataset to'plamlari"),
+        BotCommand(command="mystats", description="📊 Mening hissam"),
         BotCommand(command="admin", description="⚙️ Ustoz & Admin boshqaruv paneli"),
         BotCommand(command="help", description="ℹ️ Qo'llanma va yordam"),
     ]
-    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception as e:
+            logger.warning(f"Admin {admin_id} uchun shaxsiy komandalarni o'rnatishda xatolik: {e}")
 
 
 async def main():

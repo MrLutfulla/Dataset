@@ -10,8 +10,10 @@ from database import (
     create_speaker,
     set_user_active_speaker,
     get_speaker,
-    compute_age_group
+    compute_age_group,
+    is_admin
 )
+from keyboards.main_menu import get_main_keyboard
 from keyboards.inline import (
     get_speakers_inline_keyboard,
     get_gender_inline_keyboard,
@@ -184,6 +186,10 @@ async def process_speaker_device(callback: CallbackQuery, state: FSMContext):
     age_group = data["age_group"]
     region = data["region"]
 
+    # Foydalanuvchida avval spiker bo'lgan-bo'lmaganini tekshiramiz
+    existing_speakers = await get_speakers_by_user(callback.from_user.id)
+    is_first_speaker = len(existing_speakers) == 0
+
     speaker_id = await create_speaker(
         user_id=callback.from_user.id,
         name=name,
@@ -198,18 +204,37 @@ async def process_speaker_device(callback: CallbackQuery, state: FSMContext):
     g_icon = "👨 Erkak" if gender in ("male", "erkak") else "👩 Ayol"
     spk_tag = f"spk{speaker_id:03d}"
 
-    text = (
-        f"🎉 <b>Yangi spiker muvaffaqiyatli saqlandi!</b>\n\n"
-        f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n"
-        f"👤 <b>Ismi:</b> {name}\n"
-        f"🚻 <b>Jinsi:</b> {g_icon}\n"
-        f"🎂 <b>Yoshi:</b> {age} yosh (Guruh: <code>{age_group}</code>)\n"
-        f"📍 <b>Hudud:</b> {region}\n"
-        f"📱 <b>Qurilma:</b> {device}\n\n"
-        "✅ <i>speakers.csv uchun barcha metama'lumotlar to'liq kiritildi!</i>\n\n"
-        "Endi <b>🎙 Ovoz yozish</b> tugmasini bosib, 20 ta robot buyruqlarini yozishni boshlashingiz mumkin!"
-    )
+    admin_status = await is_admin(callback.from_user.id)
+    kb = get_main_keyboard(is_admin=admin_status)
+
+    if is_first_speaker:
+        text = (
+            f"🎉 <b>Tabriklaymiz, siz muvaffaqiyatli ro'yxatdan o'tdingiz!</b>\n\n"
+            f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n"
+            f"👤 <b>Ismi:</b> {name}\n"
+            f"🚻 <b>Jinsi:</b> {g_icon}\n"
+            f"🎂 <b>Yoshi:</b> {age} yosh (Guruh: <code>{age_group}</code>)\n"
+            f"📍 <b>Hudud:</b> {region}\n"
+            f"📱 <b>Qurilma:</b> {device}\n\n"
+            "✅ <i>Boshlang'ich diktor profilingiz faol holatga keltirildi.</i>\n\n"
+            "Endi quyidagi menyudan <b>🎙 Ovoz yozish</b> tugmasini bosib robot buyruqlarini yozishni boshlashingiz mumkin.\n\n"
+            "💡 <i>Eslatma: Keyinchalik boshqa insonlar (oila a'zolaringiz yoki do'stlaringiz) nomidan ham ovoz yozmoqchi bo'lsangiz, "
+            "<b>👤 Spikerlarim</b> bo'limi orqali yangi spikerlarni qo'shishingiz mumkin.</i>"
+        )
+    else:
+        text = (
+            f"🎉 <b>Yangi spiker muvaffaqiyatli saqlandi!</b>\n\n"
+            f"🏷 <b>Diktor ID:</b> <code>{spk_tag}</code>\n"
+            f"👤 <b>Ismi:</b> {name}\n"
+            f"🚻 <b>Jinsi:</b> {g_icon}\n"
+            f"🎂 <b>Yoshi:</b> {age} yosh (Guruh: <code>{age_group}</code>)\n"
+            f"📍 <b>Hudud:</b> {region}\n"
+            f"📱 <b>Qurilma:</b> {device}\n\n"
+            "✅ <i>Ushbu spiker faol holatga keltirildi. Endi yoziladigan ovozlar aynan ushbu diktor nomiga biriktiriladi!</i>"
+        )
+
     await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.answer("🏠 Asosiy menyu ochildi. Kerakli bo'limni tanlang:", reply_markup=kb)
     await callback.answer("Saqlandi!")
 
 
@@ -217,4 +242,13 @@ async def process_speaker_device(callback: CallbackQuery, state: FSMContext):
 async def cancel_action_cb(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
+    speakers = await get_speakers_by_user(callback.from_user.id)
+    if not speakers:
+        await callback.message.answer(
+            "⚠️ Ovoz yozish va tizimdan to'liq foydalanish uchun kamida 1 ta spiker ro'yxatdan o'tishi kerak.\n\n"
+            "Ro'yxatdan o'tish uchun /start buyrug'ini bosing."
+        )
+    else:
+        admin_status = await is_admin(callback.from_user.id)
+        await callback.message.answer("❌ Bekor qilindi.", reply_markup=get_main_keyboard(is_admin=admin_status))
     await callback.answer("Bekor qilindi.")

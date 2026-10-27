@@ -1,9 +1,18 @@
+import html
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-from database import get_or_create_user, get_user_stats, is_admin, get_speaker, cancel_session
+from database import (
+    get_or_create_user,
+    get_user_stats,
+    is_admin,
+    get_speaker,
+    get_speakers_by_user,
+    cancel_session
+)
 from keyboards.main_menu import get_main_keyboard
+from handlers.speakers import AddSpeakerSG
 
 router = Router()
 
@@ -23,27 +32,45 @@ async def cmd_start(message: Message, state: FSMContext):
         first_name=message.from_user.first_name
     )
     admin_status = await is_admin(message.from_user.id)
+    speakers = await get_speakers_by_user(message.from_user.id)
+
+    # 1. Agar foydalanuvchida hali birorta ham spiker bo'lmasa, darhol ro'yxatdan o'tkazamiz
+    if not speakers:
+        await state.set_state(AddSpeakerSG.waiting_for_name)
+        user_name = html.escape(message.from_user.first_name or "Ismingiz")
+        text = (
+            f"Assalomu alaykum, <b>{user_name}</b>!\n\n"
+            "🎙 <b>O'zbek tili Ovozli Dataset Yig'ish Botiga xush kelibsiz!</b>\n\n"
+            "Ovoz yozish va sun'iy intellekt modellarini o'qitishda ishtirok etish uchun "
+            "avval <b>boshlang'ich diktor (spiker) profilingizni</b> ro'yxatdan o'tkazamiz.\n\n"
+            "📝 <b>1-qadam (1/5):</b> Iltimos, o'zingizning <b>Ismingizni</b> (yoki laqab/taxallusingizni) yozib yuboring:\n"
+            f"<i>Masalan: {user_name}</i>"
+        )
+        await message.answer(text, parse_mode="HTML")
+        return
+
+    # 2. Agar foydalanuvchida spiker mavjud bo'lsa, asosiy menyuni chiqaramiz
     kb = get_main_keyboard(is_admin=admin_status)
 
-    speaker_info = "Belgilanmagan (avval spiker qo'shing)"
+    active_sp = None
     if user.get("active_speaker_id"):
-        sp = await get_speaker(user["active_speaker_id"])
-        if sp:
-            g_icon = "👨" if sp["gender"] == "male" else "👩"
-            speaker_info = f"{g_icon} {sp['name']} ({sp['age']} yosh)"
+        active_sp = await get_speaker(user["active_speaker_id"])
+    if not active_sp and speakers:
+        active_sp = speakers[0]
+
+    g_icon = "👨" if active_sp and active_sp.get("gender") in ("male", "erkak") else "👩"
+    spk_tag = f"spk{active_sp['id']:03d}" if active_sp else "spk001"
+    speaker_info = f"{g_icon} {active_sp['name']} ({active_sp['age']} yosh, <code>{spk_tag}</code>)"
 
     text = (
-        f"Assalomu alaykum, <b>{message.from_user.first_name}</b>!\n\n"
-        "🎙 <b>O'zbek tili Ovozli Dataset Yig'ish Botiga</b> xush kelibsiz!\n\n"
-        "Ushbu bot ovozni matnga aylantirish (Speech-to-Text), sun'iy intellekt "
-        "til modellarini o'qitish va ovozdagi hissiyotlar hamda yosh/jinsni aniqlash uchun "
-        "yuqori sifatli dataset yig'ishga xizmat qiladi.\n\n"
-        "📌 <b>Imkoniyatlar:</b>\n"
-        "• Bitta profildan bir nechta spikerlar (oila a'zolari, do'stlar) nomidan ovoz yozish;\n"
-        "• Boshqa foydalanuvchilar ovozini anonim tinglab tekshirish va sifatini baholash;\n"
-        "• To'liq yakunlangan sessiyalarni sifatli arxivlash.\n\n"
+        f"Assalomu alaykum, <b>{html.escape(message.from_user.first_name or 'Foydalanuvchi')}</b>!\n\n"
+        "🎙 <b>O'zbek tili Ovozli Dataset Yig'ish Tizimi</b>\n\n"
         f"👤 <b>Hozirgi faol spiker:</b> {speaker_info}\n\n"
-        "Boshlash uchun pastdagi <b>🎙 Ovoz yozish</b> yoki <b>🎧 Ovoz tekshirish</b> tugmasini bosing!"
+        "Quyidagi menyu tugmalaridan birini tanlang:\n"
+        "• <b>🎙 Ovoz yozish:</b> 20 ta robot buyruqlarini ketma-ket yozish;\n"
+        "• <b>🎧 Ovoz tekshirish:</b> Boshqa ishtirokchilar ovozini tinglab baholash;\n"
+        "• <b>👤 Spikerlarim:</b> Oila a'zolaringiz yoki do'stlaringiz nomidan yangi spikerlar qo'shish;\n"
+        "• <b>📊 Mening hissam:</b> Siz kiritgan ovozlar va tekshiruvlar statistikasi."
     )
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
