@@ -49,6 +49,25 @@ async def set_bot_commands(bot: Bot):
         except Exception as e:
             logger.warning(f"Admin {admin_id} uchun shaxsiy komandalarni o'rnatishda xatolik: {e}")
 
+    # 3. Bot haqida ma'lumotlar tablosi (foydalanuvchi botga kirganda ko'rinadigan qism)
+    try:
+        desc = (
+            "🎙 O'zbek tili Ovozli Dataset Yig'ish Tizimi\n\n"
+            "Ushbu bot sun'iy intellekt (Speech-to-Text) modellarini o'qitish uchun "
+            "toza va sifatli o'zbekcha ovozlar to'plamini yig'ishga mo'ljallangan.\n\n"
+            "📌 Bot imkoniyatlari:\n"
+            "• 🎙 20 ta qisqa robot buyruqlarini ovozli yozish\n"
+            "• 🎧 Boshqa ishtirokchilar ovozini tekshirish va baholash\n"
+            "• 👤 Har bir diktor uchun ilmiy parametrlar (jins, yosh, hudud)\n"
+            "• 🔒 Shaxsiy ma'lumotlar to'liq maxfiy saqlanadi\n\n"
+            "Boshlash uchun pastdagi «Boshlash» (Start) tugmasini bosing!"
+        )
+        short_desc = "O'zbek tili sun'iy intellekt modellarini o'qitish uchun ovozli dataset yig'ish va xolis tekshirish boti."
+        await bot.set_my_description(description=desc)
+        await bot.set_my_short_description(short_description=short_desc)
+    except Exception as e:
+        logger.warning(f"Bot tavsifini o'rnatishda xatolik: {e}")
+
 
 async def main():
     if not BOT_TOKEN:
