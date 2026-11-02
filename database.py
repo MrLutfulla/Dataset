@@ -274,9 +274,9 @@ async def set_user_active_category(user_id: int, category_id: int):
 # ==================== SPEAKERS ====================
 
 def compute_age_group(age: int) -> str:
-    """Yosh guruhini aniqlash (<18, 18-25, 26-40, 40+)"""
+    """Yosh guruhini aniqlash (18 yoshgacha, 18-25, 26-40, 40+)"""
     if age < 18:
-        return "<18"
+        return "18 yoshgacha"
     elif 18 <= age <= 25:
         return "18-25"
     elif 26 <= age <= 40:
